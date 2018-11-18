@@ -40,8 +40,12 @@
 #include "metrics_standard.h"
 #include "vehicle.h"
 #include "ovms_housekeeping.h"
-#include "ovms_ota.h"
 #include "ovms_peripherals.h"
+#include "ovms_version.h"
+
+#ifdef CONFIG_OVMS_COMP_OTA
+#include "ovms_ota.h"
+#endif
 
 #define _attr(text) (c.encode_html(text).c_str())
 #define _html(text) (c.encode_html(text).c_str())
@@ -247,7 +251,7 @@ void OvmsWebServer::HandleStatus(PageEntry_t& p, PageContext_t& c)
  */
 void OvmsWebServer::HandleCommand(PageEntry_t& p, PageContext_t& c)
 {
-  std::string command = c.getvar("command");
+  std::string command = c.getvar("command", 2000);
 
   // Note: application/octet-stream instead of text/plain is a workaround for an *old*
   //  Chrome/Webkit bug: chunked text/plain is always buffered for the first 1024 bytes
@@ -267,7 +271,7 @@ void OvmsWebServer::HandleCommand(PageEntry_t& p, PageContext_t& c)
  */
 void OvmsWebServer::HandleShell(PageEntry_t& p, PageContext_t& c)
 {
-  std::string command = c.getvar("command");
+  std::string command = c.getvar("command", 2000);
   std::string output;
 
   if (command != "")
@@ -615,6 +619,7 @@ void OvmsWebServer::HandleCfgVehicle(PageEntry_t& p, PageContext_t& c)
 }
 
 
+#ifdef CONFIG_OVMS_COMP_MODEM_SIMCOM
 /**
  * HandleCfgModem: configure APN & modem features (URL /cfg/modem)
  */
@@ -712,8 +717,11 @@ void OvmsWebServer::HandleCfgModem(PageEntry_t& p, PageContext_t& c)
   c.panel_end();
   c.done();
 }
+#endif
 
 
+#ifdef CONFIG_OVMS_COMP_SERVER
+#ifdef CONFIG_OVMS_COMP_SERVER_V2
 /**
  * HandleCfgServerV2: configure server v2 connection (URL /cfg/server/v2)
  */
@@ -818,8 +826,9 @@ void OvmsWebServer::HandleCfgServerV2(PageEntry_t& p, PageContext_t& c)
   c.panel_end();
   c.done();
 }
+#endif
 
-
+#ifdef CONFIG_OVMS_COMP_SERVER_V3
 /**
  * HandleCfgServerV3: configure server v3 connection (URL /cfg/server/v3)
  */
@@ -924,6 +933,8 @@ void OvmsWebServer::HandleCfgServerV3(PageEntry_t& p, PageContext_t& c)
   c.panel_end();
   c.done();
 }
+#endif
+#endif
 
 
 /**
@@ -1395,6 +1406,7 @@ void OvmsWebServer::HandleCfgAutoInit(PageEntry_t& p, PageContext_t& c)
 }
 
 
+#ifdef CONFIG_OVMS_COMP_OTA
 /**
  * HandleCfgFirmware: OTA firmware update & boot setup (URL /cfg/firmware)
  */
@@ -1406,6 +1418,9 @@ void OvmsWebServer::HandleCfgFirmware(PageEntry_t& p, PageContext_t& c)
   bool auto_enable;
   std::string auto_hour, server, tag;
   std::string output;
+  std::string version;
+  const char *what;
+  char buf[132];
 
   if (c.method == "POST") {
     // process form submission:
@@ -1508,9 +1523,27 @@ void OvmsWebServer::HandleCfgFirmware(PageEntry_t& p, PageContext_t& c)
   c.input_info("Running partition", info.partition_running.c_str());
   c.printf("<input type=\"hidden\" name=\"boot_old\" value=\"%s\">", _attr(info.partition_boot));
   c.input_select_start("Boot from", "boot");
-  c.input_select_option("Factory image", "factory", (info.partition_boot == "factory"));
-  c.input_select_option("OTA_0 image", "ota_0", (info.partition_boot == "ota_0"));
-  c.input_select_option("OTA_1 image", "ota_1", (info.partition_boot == "ota_1"));
+  what = "Factory image";
+  version = GetOVMSPartitionVersion(ESP_PARTITION_SUBTYPE_APP_FACTORY);
+  if (version != "") {
+    snprintf(buf, sizeof(buf), "%s (%s)", what, version.c_str());
+    what = buf;
+  }
+  c.input_select_option(what, "factory", (info.partition_boot == "factory"));
+  what = "OTA_0 image";
+  version = GetOVMSPartitionVersion(ESP_PARTITION_SUBTYPE_APP_OTA_0);
+  if (version != "") {
+    snprintf(buf, sizeof(buf), "%s (%s)", what, version.c_str());
+    what = buf;
+  }
+  c.input_select_option(what, "ota_0", (info.partition_boot == "ota_0"));
+  what = "OTA_1 image";
+  version = GetOVMSPartitionVersion(ESP_PARTITION_SUBTYPE_APP_OTA_1);
+  if (version != "") {
+    snprintf(buf, sizeof(buf), "%s (%s)", what, version.c_str());
+    what = buf;
+  }
+  c.input_select_option(what, "ota_1", (info.partition_boot == "ota_1"));
   c.input_select_end();
 
   // Server & auto update:
@@ -1710,6 +1743,7 @@ void OvmsWebServer::HandleCfgFirmware(PageEntry_t& p, PageContext_t& c)
 
   c.done();
 }
+#endif
 
 
 /**

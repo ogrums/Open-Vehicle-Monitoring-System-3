@@ -32,6 +32,7 @@
 #define __VEHICLE_H__
 
 #include <map>
+#include <vector>
 #include <string>
 #include "can.h"
 #include "ovms_events.h"
@@ -257,6 +258,53 @@ class OvmsVehicle : public InternalRamAllocated
   protected:
     void PollSetPidList(canbus* bus, const poll_pid_t* plist);
     void PollSetState(uint8_t state);
+
+  // BMS helpers
+  protected:
+    float* m_bms_voltages;                    // BMS voltages (current value)
+    float* m_bms_vmins;                       // BMS minimum voltages seen (since reset)
+    float* m_bms_vmaxs;                       // BMS maximum voltages seen (since reset)
+    float* m_bms_vdevmaxs;                    // BMS maximum voltage deviations seen (since reset)
+    short* m_bms_valerts;                     // BMS voltage deviation alerts (since reset)
+    int m_bms_valerts_new;                    // BMS new voltage alerts since last notification
+    bool m_bms_has_voltages;                  // True if BMS has a complete set of voltage values
+    float* m_bms_temperatures;                // BMS temperatures (celcius current value)
+    float* m_bms_tmins;                       // BMS minimum temperatures seen (since reset)
+    float* m_bms_tmaxs;                       // BMS maximum temperatures seen (since reset)
+    float* m_bms_tdevmaxs;                    // BMS maximum temperature deviations seen (since reset)
+    short* m_bms_talerts;                     // BMS temperature deviation alerts (since reset)
+    int m_bms_talerts_new;                    // BMS new temperature alerts since last notification
+    bool m_bms_has_temperatures;              // True if BMS has a complete set of temperature values
+    std::vector<bool> m_bms_bitset_v;         // BMS tracking: true if corresponding voltage set
+    std::vector<bool> m_bms_bitset_t;         // BMS tracking: true if corresponding temperature set
+    int m_bms_bitset_cv;                      // BMS tracking: count of unique voltage values set
+    int m_bms_bitset_ct;                      // BMS tracking: count of unique temperature values set
+    int m_bms_readings_v;                     // Number of BMS voltage readings expected
+    int m_bms_readingspermodule_v;            // Number of BMS voltage readings per module
+    int m_bms_readings_t;                     // Number of BMS temperature readings expected
+    int m_bms_readingspermodule_t;            // Number of BMS temperature readings per module
+    float m_bms_limit_tmin;                   // Minimum temperature limit (for sanity checking)
+    float m_bms_limit_tmax;                   // Maximum temperature limit (for sanity checking)
+    float m_bms_limit_vmin;                   // Minimum voltage limit (for sanity checking)
+    float m_bms_limit_vmax;                   // Maximum voltage limit (for sanity checking)
+
+  protected:
+    void BmsSetCellArrangementVoltage(int readings, int readingspermodule);
+    void BmsSetCellArrangementTemperature(int readings, int readingspermodule);
+    void BmsSetCellLimitsVoltage(float min, float max);
+    void BmsSetCellLimitsTemperature(float min, float max);
+    void BmsSetCellVoltage(int index, float value);
+    void BmsResetCellVoltages();
+    void BmsSetCellTemperature(int index, float value);
+    void BmsResetCellTemperatures();
+    void BmsRestartCellVoltages();
+    void BmsRestartCellTemperatures();
+    virtual void NotifyBmsAlerts();
+
+  public:
+    void BmsResetCellStats();
+    virtual void BmsStatus(int verbosity, OvmsWriter* writer);
+    virtual bool FormatBmsAlerts(int verbosity, OvmsWriter* writer, bool show_warnings);
   };
 
 template<typename Type> OvmsVehicle* CreateVehicle()

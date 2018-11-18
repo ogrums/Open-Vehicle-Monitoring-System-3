@@ -32,6 +32,7 @@
 #define __VEHICLE_TESLAMODELS_H__
 
 #include "vehicle.h"
+#include "ovms_metrics.h"
 
 using namespace std;
 
@@ -53,6 +54,7 @@ class OvmsVehicleTeslaModelS: public OvmsVehicle
   protected:
     char m_vin[18];
     char m_type[5];
+    uint16_t m_charge_w;
   };
 
 #endif //#ifndef __VEHICLE_TESLAMODELS_H__
