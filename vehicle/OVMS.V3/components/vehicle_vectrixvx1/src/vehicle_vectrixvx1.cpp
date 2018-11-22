@@ -49,10 +49,12 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
 
   RegisterCanBus(1,CAN_MODE_ACTIVE,CAN_SPEED_250KBPS);
 
-  BmsSetCellArrangementVoltage(40, 6);
+  BmsSetCellArrangementVoltage(40, 2);
   BmsSetCellArrangementTemperature(4, 2);
-  BmsSetCellLimitsVoltage(1,3.65);
-  BmsSetCellLimitsTemperature(-90,90);
+  BmsSetCellLimitsVoltage(2.6,3.65);
+  BmsSetCellLimitsTemperature(-10,35);
+  BmsSetCellDefaultThresholdsVoltage(0.020, 0.030);
+  BmsSetCellDefaultThresholdsTemperature(2.0, 3.0);
 
   MyWebServer.RegisterPage("/bms/cellmon", "BMS cell monitor", OvmsWebServer::HandleBmsCellMonitor, PageMenu_Vehicle, PageAuth_Cookie);
   }
@@ -70,12 +72,14 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 
   switch (p_frame->MsgID)
     {
-    case 0x102: // BMS current and voltage
+    case 0x00fef105: // MC voltage and speed
       {
+      StandardMetrics.ms_v_pos_speed->SetValue((float)(((((int)d[2]&0xff)<<8) + ((int)d[1]&0xff)*0.00390625)));
       // Don't update battery voltage too quickly (as it jumps around like crazy)
       if (StandardMetrics.ms_v_bat_voltage->Age() > 10)
-        StandardMetrics.ms_v_bat_voltage->SetValue(((float)((int)d[1]<<8)+d[0])/100);
-      StandardMetrics.ms_v_bat_temp->SetValue((float)((((int)d[7]&0x07)<<8)+d[6])/10);
+        StandardMetrics.ms_v_bat_voltage->SetValue((int)d[6]);
+        StandardMetrics.ms_v_bat_current->SetValue((float)((int)d[7]*0.488));
+      //StandardMetrics.ms_v_bat_temp->SetValue((float)((((int)d[7]&0x07)<<8)+d[6])/10);
       break;
       }
     case 0x116: // Gear selector
@@ -118,11 +122,6 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
     case 0x222: // Charging related
       {
       m_charge_w = uint16_t(d[1]<<8)+d[0];
-      break;
-      }
-    case 0x256: // Speed
-      {
-      StandardMetrics.ms_v_pos_speed->SetValue( ((((int)d[3]&0x0f)<<8) + (int)d[2])/10, (d[3]&0x80)?Kph:Mph );
       break;
       }
     case 0x28C: // Charging related
@@ -200,51 +199,200 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
                                                 + d[0])/1000, Miles);
       break;
       }
-    case 0x6f2: // BMS brick voltage and module temperatures
+    case 0x00fdf041: // BMS brick voltage and module temperatures
       {
-      int v1 = ((int)(d[2]&0x3f)<<8) + d[1];
-      int v2 = (((int)d[4]&0x0f)<<10) + (((int)d[3])<<2) + (d[2]>>6);
-      int v3 = (((int)d[6]&0x03)<<12) + (((int)d[5])<<4) + (d[4]>>4);
-      int v4 = (((int)d[7])<<6) + (((int)d[6]>>2));
-      if ((v1 != 0x3fff)&&(v2 != 0x3fff)&&(v3 != 0x3fff)&&(v4 != 0x3fff)&&
+      int v1 = (((int)(d[0]&0xFF)<<4)&0xFF0) + ((int)d[5]&0xF);
+      int v2 = (((int)(d[1]&0xFF)<<4)&0xFF0) + (((int)d[5]>>4)&0xF);
+      int v3 = (((int)(d[2]&0xFF)<<4)&0xFF0) + ((int)d[6]&0xF);
+      int v4 = (((int)(d[3]&0xFF)<<4)&0xFF0) + (((int)d[6]>>4)&0xF);
+      int v5 = (((int)(d[4]&0xFF)<<4)&0xFF0) + ((int)d[7]&0xF);
+      if ((v1 != 0xfff)&&(v2 != 0xfff)&&(v3 != 0xfff)&&(v4 != 0xfff)&&
           (v1 != 0)&&(v2 != 0)&&(v3 != 0)&&(v4 != 0))
         {
-        if (d[0]<24)
-          {
           // Voltages
-          int k = d[0]*4;
-          BmsSetCellVoltage(k,   0.000305 * v1);
-          BmsSetCellVoltage(k+1, 0.000305 * v2);
-          BmsSetCellVoltage(k+2, 0.000305 * v3);
-          BmsSetCellVoltage(k+3, 0.000305 * v4);
-          }
-        else
-          {
-          // Temperatures
-          int k = (d[0]-24)*4;
-          BmsSetCellTemperature(k,   0.0122 * ((v1 & 0x1FFF) - (v1 & 0x2000)));
-          BmsSetCellTemperature(k+1, 0.0122 * ((v2 & 0x1FFF) - (v2 & 0x2000)));
-          BmsSetCellTemperature(k+2, 0.0122 * ((v3 & 0x1FFF) - (v3 & 0x2000)));
-          BmsSetCellTemperature(k+3, 0.0122 * ((v4 & 0x1FFF) - (v4 & 0x2000)));
-          }
+          int k = (((d[7]&0xf0)>>4)&0xf);
+          BmsSetCellVoltage(k,   0.0015 * v1);
+          BmsSetCellVoltage(k+1, 0.0015 * v2);
+          BmsSetCellVoltage(k+2, 0.0015 * v3);
+          BmsSetCellVoltage(k+3, 0.0015 * v4);
+          BmsSetCellVoltage(k+4, 0.0015 * v5);
+          ESP_LOGV(TAG, "BMS41 %03x %03x %03x %03x %03x", v1, v2, v3, v4, v5);
         }
       break;
       }
+    case 0x00fdf042: // BMS brick voltage and module temperatures
+      {
+      int v1 = (((int)(d[0]&0xFF)<<4)&0xFF0) + ((int)d[5]&0xF);
+      int v2 = (((int)(d[1]&0xFF)<<4)&0xFF0) + (((int)d[5]>>4)&0xF);
+      int v3 = (((int)(d[2]&0xFF)<<4)&0xFF0) + ((int)d[6]&0xF);
+      int v4 = (((int)(d[3]&0xFF)<<4)&0xFF0) + (((int)d[6]>>4)&0xF);
+      int v5 = (((int)(d[4]&0xFF)<<4)&0xFF0) + ((int)d[7]&0xF);
+      if ((v1 != 0xfff)&&(v2 != 0xfff)&&(v3 != 0xfff)&&(v4 != 0xfff)&&
+            (v1 != 0)&&(v2 != 0)&&(v3 != 0)&&(v4 != 0))
+        {
+          // Voltages
+            int k = (((d[7]&0xf0)>>4)&0xf);
+            BmsSetCellVoltage(k,   0.0015 * v1);
+            BmsSetCellVoltage(k+1, 0.0015 * v2);
+            BmsSetCellVoltage(k+2, 0.0015 * v3);
+            BmsSetCellVoltage(k+3, 0.0015 * v4);
+            BmsSetCellVoltage(k+4, 0.0015 * v5);
+            ESP_LOGV(TAG, "BMS42 %03x %03x %03x %03x %03x", v1, v2, v3, v4, v5);
+        }
+      break;
+      }
+    case 0x00fdf043: // BMS brick voltage and module temperatures
+      {
+      int v1 = (((int)(d[0]&0xFF)<<4)&0xFF0) + ((int)d[5]&0xF);
+      int v2 = (((int)(d[1]&0xFF)<<4)&0xFF0) + (((int)d[5]>>4)&0xF);
+      int v3 = (((int)(d[2]&0xFF)<<4)&0xFF0) + ((int)d[6]&0xF);
+      int v4 = (((int)(d[3]&0xFF)<<4)&0xFF0) + (((int)d[6]>>4)&0xF);
+      int v5 = (((int)(d[4]&0xFF)<<4)&0xFF0) + ((int)d[7]&0xF);
+      if ((v1 != 0xfff)&&(v2 != 0xfff)&&(v3 != 0xfff)&&(v4 != 0xfff)&&
+            (v1 != 0)&&(v2 != 0)&&(v3 != 0)&&(v4 != 0))
+        {
+          // Voltages
+            int k = (((d[7]&0xf0)>>4)&0xf);
+            BmsSetCellVoltage(k,   0.0015 * v1);
+            BmsSetCellVoltage(k+1, 0.0015 * v2);
+            BmsSetCellVoltage(k+2, 0.0015 * v3);
+            BmsSetCellVoltage(k+3, 0.0015 * v4);
+            BmsSetCellVoltage(k+4, 0.0015 * v5);
+          //  ESP_LOGV(TAG, "%04x %04x %04x %04x %04x", v1, v2, v3, v4, v5);
+        }
+    break;
+    }
+    case 0x00fdf044: // BMS brick voltage and module temperatures
+      {
+      int v1 = (((int)(d[0]&0xFF)<<4)&0xFF0) + ((int)d[5]&0xF);
+      int v2 = (((int)(d[1]&0xFF)<<4)&0xFF0) + (((int)d[5]>>4)&0xF);
+      int v3 = (((int)(d[2]&0xFF)<<4)&0xFF0) + ((int)d[6]&0xF);
+      int v4 = (((int)(d[3]&0xFF)<<4)&0xFF0) + (((int)d[6]>>4)&0xF);
+      int v5 = (((int)(d[4]&0xFF)<<4)&0xFF0) + ((int)d[7]&0xF);
+      if ((v1 != 0xfff)&&(v2 != 0xfff)&&(v3 != 0xfff)&&(v4 != 0xfff)&&
+            (v1 != 0)&&(v2 != 0)&&(v3 != 0)&&(v4 != 0))
+        {
+          // Voltages
+            int k = (((d[7]&0xf0)>>4)&0xf);
+            BmsSetCellVoltage(k,   0.0015 * v1);
+            BmsSetCellVoltage(k+1, 0.0015 * v2);
+            BmsSetCellVoltage(k+2, 0.0015 * v3);
+            BmsSetCellVoltage(k+3, 0.0015 * v4);
+            BmsSetCellVoltage(k+4, 0.0015 * v5);
+          //  ESP_LOGV(TAG, "%04x %04x %04x %04x %04x", v1, v2, v3, v4, v5);
+        }
+    break;
+    }
+    case 0x00fdf046: // BMS brick voltage and module temperatures
+      {
+      int v1 = (((int)(d[0]&0xFF)<<4)&0xFF0) + ((int)d[5]&0xF);
+      int v2 = (((int)(d[1]&0xFF)<<4)&0xFF0) + (((int)d[5]>>4)&0xF);
+      int v3 = (((int)(d[2]&0xFF)<<4)&0xFF0) + ((int)d[6]&0xF);
+      int v4 = (((int)(d[3]&0xFF)<<4)&0xFF0) + (((int)d[6]>>4)&0xF);
+      int v5 = (((int)(d[4]&0xFF)<<4)&0xFF0) + ((int)d[7]&0xF);
+      if ((v1 != 0xfff)&&(v2 != 0xfff)&&(v3 != 0xfff)&&(v4 != 0xfff)&&
+            (v1 != 0)&&(v2 != 0)&&(v3 != 0)&&(v4 != 0))
+        {
+          // Voltages
+            int k = (((d[7]&0xf0)>>4)&0xf);
+            BmsSetCellVoltage(k,   0.0015 * v1);
+            BmsSetCellVoltage(k+1, 0.0015 * v2);
+            BmsSetCellVoltage(k+2, 0.0015 * v3);
+            BmsSetCellVoltage(k+3, 0.0015 * v4);
+            BmsSetCellVoltage(k+4, 0.0015 * v5);
+          //  ESP_LOGV(TAG, "%04x %04x %04x %04x %04x", v1, v2, v3, v4, v5);
+        }
+    break;
+    }
+    case 0x00fdf047: // BMS brick voltage and module temperatures
+      {
+      int v1 = (((int)(d[0]&0xFF)<<4)&0xFF0) + ((int)d[5]&0xF);
+      int v2 = (((int)(d[1]&0xFF)<<4)&0xFF0) + (((int)d[5]>>4)&0xF);
+      int v3 = (((int)(d[2]&0xFF)<<4)&0xFF0) + ((int)d[6]&0xF);
+      int v4 = (((int)(d[3]&0xFF)<<4)&0xFF0) + (((int)d[6]>>4)&0xF);
+      int v5 = (((int)(d[4]&0xFF)<<4)&0xFF0) + ((int)d[7]&0xF);
+      if ((v1 != 0xfff)&&(v2 != 0xfff)&&(v3 != 0xfff)&&(v4 != 0xfff)&&
+            (v1 != 0)&&(v2 != 0)&&(v3 != 0)&&(v4 != 0))
+        {
+          // Voltages
+            int k = (((d[7]&0xf0)>>4)&0xf);
+            BmsSetCellVoltage(k,   0.0015 * v1);
+            BmsSetCellVoltage(k+1, 0.0015 * v2);
+            BmsSetCellVoltage(k+2, 0.0015 * v3);
+            BmsSetCellVoltage(k+3, 0.0015 * v4);
+            BmsSetCellVoltage(k+4, 0.0015 * v5);
+          //  ESP_LOGV(TAG, "%04x %04x %04x %04x %04x", v1, v2, v3, v4, v5);
+        }
+    break;
+    }
+    case 0x00fdf048: // BMS brick voltage and module temperatures
+      {
+      int v1 = (((int)(d[0]&0xFF)<<4)&0xFF0) + ((int)d[5]&0xF);
+      int v2 = (((int)(d[1]&0xFF)<<4)&0xFF0) + (((int)d[5]>>4)&0xF);
+      int v3 = (((int)(d[2]&0xFF)<<4)&0xFF0) + ((int)d[6]&0xF);
+      int v4 = (((int)(d[3]&0xFF)<<4)&0xFF0) + (((int)d[6]>>4)&0xF);
+      int v5 = (((int)(d[4]&0xFF)<<4)&0xFF0) + ((int)d[7]&0xF);
+      if ((v1 != 0xfff)&&(v2 != 0xfff)&&(v3 != 0xfff)&&(v4 != 0xfff)&&
+            (v1 != 0)&&(v2 != 0)&&(v3 != 0)&&(v4 != 0))
+        {
+          // Voltages
+            int k = (((d[7]&0xf0)>>4)&0xf);
+            BmsSetCellVoltage(k,   0.0015 * v1);
+            BmsSetCellVoltage(k+1, 0.0015 * v2);
+            BmsSetCellVoltage(k+2, 0.0015 * v3);
+            BmsSetCellVoltage(k+3, 0.0015 * v4);
+            BmsSetCellVoltage(k+4, 0.0015 * v5);
+          //  ESP_LOGV(TAG, "%04x %04x %04x %04x %04x", v1, v2, v3, v4, v5);
+        }
+    break;
+    }
+    case 0x00fdf049: // BMS brick voltage and module temperatures
+      {
+      int v1 = (((int)(d[0]&0xFF)<<4)&0xFF0) + ((int)d[5]&0xF);
+      int v2 = (((int)(d[1]&0xFF)<<4)&0xFF0) + (((int)d[5]>>4)&0xF);
+      int v3 = (((int)(d[2]&0xFF)<<4)&0xFF0) + ((int)d[6]&0xF);
+      int v4 = (((int)(d[3]&0xFF)<<4)&0xFF0) + (((int)d[6]>>4)&0xF);
+      int v5 = (((int)(d[4]&0xFF)<<4)&0xFF0) + ((int)d[7]&0xF);
+      if ((v1 != 0xfff)&&(v2 != 0xfff)&&(v3 != 0xfff)&&(v4 != 0xfff)&&
+            (v1 != 0)&&(v2 != 0)&&(v3 != 0)&&(v4 != 0))
+        {
+          // Voltages
+            int k = (((d[7]&0xf0)>>4)&0xf);
+            BmsSetCellVoltage(k,   0.0015 * v1);
+            BmsSetCellVoltage(k+1, 0.0015 * v2);
+            BmsSetCellVoltage(k+2, 0.0015 * v3);
+            BmsSetCellVoltage(k+3, 0.0015 * v4);
+            BmsSetCellVoltage(k+4, 0.0015 * v5);
+          //  ESP_LOGV(TAG, "%04x %04x %04x %04x %04x", v1, v2, v3, v4, v5);
+        }
+    break;
+    }
+    case 0x00fef340: // BMS brick module temperatures
+    {
+        int k = ((d[7]&0xf0)>>4);
+        int v1 = ((int)(d[1]&0xFF));
+        BmsSetCellTemperature(k, v1);
+        ESP_LOGV(TAG, "BMS %01x %02x", k, v1);
+        //BmsSetCellTemperature(k+1, 0.0122 * ((v2 & 0x1FFF) - (v2 & 0x2000)));
+        //BmsSetCellTemperature(k+2, 0.0122 * ((v3 & 0x1FFF) - (v3 & 0x2000)));
+        //BmsSetCellTemperature(k+3, 0.0122 * ((v4 & 0x1FFF) - (v4 & 0x2000)));
 
-    case 0x2f8: // MCU GPS speed/heading
-      StandardMetrics.ms_v_pos_gpshdop->SetValue((float)d[0] / 10);
-      StandardMetrics.ms_v_pos_direction->SetValue((float)(((uint32_t)d[2]<<8)+d[1])/128.0);
-      break;
-    case 0x3d8: // MCU GPS latitude / longitude
-      StandardMetrics.ms_v_pos_latitude->SetValue((double)(((uint32_t)(d[3]&0x0f) << 24) +
-                                                          ((uint32_t)d[2] << 16) +
-                                                          ((uint32_t)d[1] << 8) +
-                                                          (uint32_t)d[0]) / 1000000.0);
-      StandardMetrics.ms_v_pos_longitude->SetValue((double)(((uint32_t)d[6] << 20) +
-                                                           ((uint32_t)d[5] << 12) +
-                                                           ((uint32_t)d[4] << 4) +
-                                                           ((uint32_t)(d[3]&0xf0) >> 4)) / 1000000.0);
-      break;
+    break;
+    }
+    //case 0x2f8: // MCU GPS speed/heading
+    //  StandardMetrics.ms_v_pos_gpshdop->SetValue((float)d[0] / 10);
+    //  StandardMetrics.ms_v_pos_direction->SetValue((float)(((uint32_t)d[2]<<8)+d[1])/128.0);
+    //  break;
+    //case 0x3d8: // MCU GPS latitude / longitude
+    //  StandardMetrics.ms_v_pos_latitude->SetValue((double)(((uint32_t)(d[3]&0x0f) << 24) +
+    //                                                      ((uint32_t)d[2] << 16) +
+    //                                                      ((uint32_t)d[1] << 8) +
+    //                                                      (uint32_t)d[0]) / 1000000.0);
+    //  StandardMetrics.ms_v_pos_longitude->SetValue((double)(((uint32_t)d[6] << 20) +
+    //                                                       ((uint32_t)d[5] << 12) +
+    //                                                       ((uint32_t)d[4] << 4) +
+    //                                                       ((uint32_t)(d[3]&0xf0) >> 4)) / 1000000.0);
+    //  break;
     default:
       break;
     }
