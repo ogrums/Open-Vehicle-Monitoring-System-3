@@ -153,15 +153,15 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
         }
       break;
       }
-    case 0x302: // SOC
+    case 0x00FEFC4C: // SOC
       {
-      StandardMetrics.ms_v_bat_soc->SetValue( (((int)d[1]>>2) + (((int)d[2] & 0x0f)<<6))/10 );
+      StandardMetrics.ms_v_bat_soc->SetValue( ((float)(((int)d[0]&0xFF )* 100) / 256) );
       break;
       }
-    case 0x306: // Temperatures
+    case 0x00FF0505: // Temperatures
       {
-      StandardMetrics.ms_v_inv_temp->SetValue((int)d[1]-40);
-      StandardMetrics.ms_v_mot_temp->SetValue((int)d[2]-40);
+      //StandardMetrics.ms_v_inv_temp->SetValue((int)d[1]-40);
+      StandardMetrics.ms_v_mot_temp->SetValue((int)d[3]);
       break;
       }
     case 0x398: // Country
@@ -191,12 +191,12 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
         }
       break;
       }
-    case 0x5d8: // Odometer (0x562 is battery, so this is motor or car?)
+    case 0x00FEE005: // Odometer (0x562 is battery, so this is motor or car?)
       {
-      StandardMetrics.ms_v_pos_odometer->SetValue((float)(((uint32_t)d[3]<<24)
-                                                + ((uint32_t)d[2]<<16)
-                                                + ((uint32_t)d[1]<<8)
-                                                + d[0])/1000, Miles);
+      StandardMetrics.ms_v_pos_odometer->SetValue((float)(((uint32_t)d[4]<<24)
+                                                + ((uint32_t)d[5]<<16)
+                                                + ((uint32_t)d[6]<<8)
+                                                + d[7])*0.05, Kilometers);
       break;
       }
     case 0x00fdf041: // BMS brick voltage and module temperatures
@@ -216,7 +216,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
           BmsSetCellVoltage(k+2, 0.0015 * v3);
           BmsSetCellVoltage(k+3, 0.0015 * v4);
           BmsSetCellVoltage(k+4, 0.0015 * v5);
-          ESP_LOGV(TAG, "BMS41 %03x %03x %03x %03x %03x", v1, v2, v3, v4, v5);
+          ESP_LOGD(TAG, "BMS41 %03x %03x %03x %03x %03x", v1, v2, v3, v4, v5);
         }
       break;
       }
@@ -237,7 +237,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
             BmsSetCellVoltage(k+2, 0.0015 * v3);
             BmsSetCellVoltage(k+3, 0.0015 * v4);
             BmsSetCellVoltage(k+4, 0.0015 * v5);
-            ESP_LOGV(TAG, "BMS42 %03x %03x %03x %03x %03x", v1, v2, v3, v4, v5);
+            ESP_LOGD(TAG, "BMS42 %03x %03x %03x %03x %03x", v1, v2, v3, v4, v5);
         }
       break;
       }
@@ -372,7 +372,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
         int k = ((d[7]&0xf0)>>4);
         int v1 = ((int)(d[1]&0xFF));
         BmsSetCellTemperature(k, v1);
-        ESP_LOGV(TAG, "BMS %01x %02x", k, v1);
+        ESP_LOGD(TAG, "BMS %01x %02x", k, v1);
         //BmsSetCellTemperature(k+1, 0.0122 * ((v2 & 0x1FFF) - (v2 & 0x2000)));
         //BmsSetCellTemperature(k+2, 0.0122 * ((v3 & 0x1FFF) - (v3 & 0x2000)));
         //BmsSetCellTemperature(k+3, 0.0122 * ((v4 & 0x1FFF) - (v4 & 0x2000)));
