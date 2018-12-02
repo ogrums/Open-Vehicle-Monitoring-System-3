@@ -72,6 +72,55 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 
   switch (p_frame->MsgID)
     {
+      case 0x00fee04C:
+		{
+		// Estimated range:
+		StdMetrics.ms_v_bat_range_est->SetValue((float) ((d[7] << 24) + (d[6] << 16) + (d[5] << 8) + d[4]) * 0.5, Kilometers);
+
+		}
+		break;
+
+	case 0x18FEE017:
+		{
+		// Odometer:
+		StdMetrics.ms_v_pos_odometer->SetValue((float) ((d[7] << 24) + (d[6] << 16) + (d[5] << 8) + d[4]) * 0.05, Kilometers);
+		// trip A
+		StdMetrics.ms_v_pos_trip->SetValue((float) ((d[1] << 8) + d[0]) * 0.05, Kilometers);
+		}
+
+		break;
+
+	case 0x00FEF106:
+		{
+		// Charging Mode
+		// Mesured Motor Controller voltage used
+		//StdMetrics.ms_v_bat_voltage->SetValue((float) (d[6] > 0), Volts); // Volts
+
+		}
+		break;
+
+	case 0x00FF0505:
+		{
+		// Regen:
+		//StdMetrics.ms_v_pos_speed->SetValue((double) ((d[2] << 8) + d[1]) * 0.00390625, Kph); // kph
+		// Motor Controller Temperature
+		// ?????_mc_temp->SetValue((float) (d[3] > 0), Celcius); // Deg C
+		// Motor controller Capacitor Temperature
+		// ?????_mc_cap1temp->SetValue((float) (d[4] > 0), Celcius); // Deg C
+		// ?????_mc_cap2temp->SetValue((float) (d[5] > 0), Celcius); // Deg C
+		// ?????_mc_cap3temp->SetValue((float) (d[6] > 0), Celcius); // Deg C
+
+		// Status GO, Ready, VPE Indicator Byte 0
+		//m_v_env_readyindic->SetValue((d[0] & 0x01) > 0);//Byte 0 - Bit 0 - Ready
+		//m_v_env_goindic->SetValue((d[0] & 0x04) > 0);		//Byte 0 - Bit 2 - Go
+		//m_v_env_vpeindic->SetValue((d[0] & 0x10) > 0);	//Byte 0 - Bit 4 - VPE
+
+    //StandardMetrics.ms_v_inv_temp->SetValue((int)d[1]-40);
+    StandardMetrics.ms_v_mot_temp->SetValue((int)d[3]);
+
+		}
+		break;
+    
     case 0x00fef105: // MC voltage and speed
       {
       StandardMetrics.ms_v_pos_speed->SetValue((float)(((((int)d[2]&0xff)<<8) + ((int)d[1]&0xff)*0.00390625)));
@@ -128,7 +177,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
         }
       break;
       }
-    case 0xFEE24C: // Charging related
+    case 0x00FEE24C: // Charging related
       {
       m_charge_w = uint8_t(d[7]&0x1F);
       break;
@@ -162,17 +211,21 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
         }
       break;
       }
+    case 0xfef74c: //Charger status
+		  {
+		  //m_v_preheat_timer1_enabled->SetValue( d[0] & 0x1 );
+		  //m_v_preheat_timer2_enabled->SetValue( d[3] & 0x1 );
+		  StdMetrics.ms_v_charge_current->SetValue((float) ((d[4] * 0.1) , Amps)); // Charger Output Current
+		  StdMetrics.ms_v_charge_voltage->SetValue((float) ((d[7] > 0), Volts)); // Charger Output Volts
+		  }
+		break;
+
     case 0x00FEFC4C: // SOC
       {
       StandardMetrics.ms_v_bat_soc->SetValue( ((float)(((int)d[0]&0xFF )* 100) / 256) );
       break;
       }
-    case 0x00FF0505: // Temperatures
-      {
-      //StandardMetrics.ms_v_inv_temp->SetValue((int)d[1]-40);
-      StandardMetrics.ms_v_mot_temp->SetValue((int)d[3]);
-      break;
-      }
+
     case 0x508: // VIN
       {
       switch(d[0])
@@ -199,6 +252,21 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
                                                 + d[7])*0.05, Kilometers);
       break;
       }
+    case 0x18FEE617:
+      {
+        // Clock:
+        //if (d[1] > 0 || d[2] > 0 || d[3] > 0)
+        //vv_clock=(((d[0]*60) + d[1])*60) + d[2];
+
+        // check If Go Ready "ignition"
+        uint8_t indGoReady = ((d[0] & 0x01) || (d[0] & 0x04));
+        if ( indGoReady == 5) {
+          StdMetrics.ms_v_env_on->SetValue(true);
+        } else {
+          StdMetrics.ms_v_env_on->SetValue(false);
+        }
+      }
+      break;
 /*    case 0x00fdf041: // BMS brick voltage
 ;      {
 ;      int v1 = (((int)(d[0]&0xFF)<<4)&0xFF0) + ((int)d[5]&0xF);
