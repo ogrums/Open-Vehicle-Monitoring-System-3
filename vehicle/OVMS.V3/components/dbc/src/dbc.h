@@ -35,6 +35,7 @@
 #include <map>
 #include <list>
 #include <functional>
+#include <iostream>
 
 #define DBC_MAX_LINELENGTH 2048
 
@@ -64,6 +65,37 @@ typedef enum
   DBC_VALUETYPE_UNSIGNED = '+',
   DBC_VALUETYPE_SIGNED = '-'
   } dbcValueType_t;
+
+typedef enum
+  {
+  DBC_NUMBER_NONE = 0,
+  DBC_NUMBER_INTEGER,
+  DBC_NUMBER_DOUBLE
+} dbcNumberType_t;
+
+class dbcNumber
+  {
+  public:
+    dbcNumber();
+    ~dbcNumber();
+
+  public:
+    void Clear();
+    void Set(int value);
+    void Set(double value);
+    friend std::ostream& operator<<(std::ostream& os, const dbcNumber& me);
+    dbcNumber& operator=(const int value);
+    dbcNumber& operator=(const double value);
+    dbcNumber& operator=(const dbcNumber& value);
+
+  public:
+    dbcNumberType_t m_type;
+    union
+      {
+      int intval;
+      double doubleval;
+      } m_value;
+  };
 
 typedef std::list<std::string> dbcCommentList_t;
 class dbcCommentTable
@@ -161,11 +193,15 @@ class dbcBitTiming
 
   public:
     void EmptyContent();
+    uint32_t GetBaudRate();
+    uint32_t GetBTR1();
+    uint32_t GetBTR2();
+    void SetBaud(const uint32_t baudrate, const uint32_t btr1, const uint32_t btr2);
 
   public:
     void WriteFile(dbcOutputCallback callback, void* param);
 
-  public:
+  protected:
     uint32_t m_baudrate;
     uint32_t m_btr1;
     uint32_t m_btr2;
@@ -186,6 +222,7 @@ class dbcValueTable
     void RemoveValue(uint32_t id);
     bool HasValue(uint32_t id);
     std::string GetValue(uint32_t id);
+    int GetCount();
 
   public:
     void EmptyContent();
@@ -243,9 +280,33 @@ class dbcSignal
     std::string GetValue(uint32_t id);
 
   public:
-    bool SetBitsDBC(std::string dbcval);
-    bool SetFactorOffsetDBC(std::string dbcval);
-    bool SetMinMaxDBC(std::string dbcval);
+    const std::string& GetName();
+    void SetName(const std::string& name);
+    void SetName(const char* name);
+    bool IsMultiplexor();
+    bool IsMultiplexSwitch();
+    void SetMultiplexor();
+    uint32_t GetMultiplexSwitchvalue();
+    bool SetMultiplexed(const uint32_t switchvalue);
+    bool ClearMultiplexed();
+    int GetStartBit();
+    int GetSignalSize();
+    dbcByteOrder_t GetByteOrder();
+    dbcValueType_t GetValueType();
+    dbcNumber GetFactor();
+    dbcNumber GetOffset();
+    dbcNumber GetMinimum();
+    dbcNumber GetMaximum();
+    void SetStartSize(const int startbit, const int size);
+    void SetByteOrder(const dbcByteOrder_t order);
+    void SetValueType(const dbcValueType_t type);
+    void SetFactorOffset(const dbcNumber factor, const dbcNumber offset);
+    void SetFactorOffset(const double factor, const double offset);
+    void SetMinMax(const dbcNumber minimum, const dbcNumber maximum);
+    void SetMinMax(const double minimum, const double maximum);
+    const std::string& GetUnit();
+    void SetUnit(const std::string& unit);
+    void SetUnit(const char* unit);
 
   public:
     void WriteFile(dbcOutputCallback callback, void* param);
@@ -253,20 +314,22 @@ class dbcSignal
     void WriteFileValues(dbcOutputCallback callback, void* param, std::string messageid);
 
   public:
-    std::string m_name;
-    dbcMultiplexor_t m_mux;
-    uint8_t m_start_bit;
-    uint8_t m_signal_size;
-    dbcByteOrder_t m_byte_order;
-    dbcValueType_t m_value_type;
-    double m_factor;
-    double m_offset;
-    double m_minimum;
-    double m_maximum;
-    std::string m_unit;
     dbcReceiverList_t m_receivers;
     dbcCommentTable m_comments;
     dbcValueTable m_values;
+
+  protected:
+    std::string m_name;
+    dbcMultiplexor_t m_mux;
+    int m_start_bit;
+    int m_signal_size;
+    dbcByteOrder_t m_byte_order;
+    dbcValueType_t m_value_type;
+    dbcNumber m_factor;
+    dbcNumber m_offset;
+    dbcNumber m_minimum;
+    dbcNumber m_maximum;
+    std::string m_unit;
   };
 
 typedef std::list<dbcSignal*> dbcSignalList_t;
@@ -278,14 +341,29 @@ class dbcMessage
     ~dbcMessage();
 
   public:
-    void AddComment(std::string comment);
-    void AddComment(const char* comment);
-    void RemoveComment(std::string comment);
-    bool HasComment(std::string comment);
     void AddSignal(dbcSignal* signal);
     void RemoveSignal(dbcSignal* signal, bool free=false);
     dbcSignal* FindSignal(std::string name);
     void Count(int* signals, int* bits, int* covered);
+
+  public:
+    void AddComment(const std::string& comment);
+    void AddComment(const char* comment);
+    void RemoveComment(const std::string& comment);
+    bool HasComment(const std::string& comment);
+    uint32_t GetID();
+    void SetID(const uint32_t id);
+    int GetSize();
+    void SetSize(const int size);
+    const std::string& GetName();
+    void SetName(const std::string& name);
+    void SetName(const char* name);
+    const std::string& GetTransmitterNode();
+    void SetTransmitterNode(std::string node);
+    void SetTransmitterNode(const char* node);
+    bool IsMultiplexor();
+    dbcSignal* GetMultiplexorSignal();
+    void SetMultiplexorSignal(dbcSignal* signal);
 
   public:
     void WriteFile(dbcOutputCallback callback, void* param);
@@ -293,13 +371,15 @@ class dbcMessage
     void WriteFileValues(dbcOutputCallback callback, void* param);
 
   public:
-    uint32_t m_id;
-    std::string m_name;
-    uint8_t m_size;
-    std::string m_transmitter_node;
     dbcSignalList_t m_signals;
     dbcCommentTable m_comments;
-    std::string m_multiplexor;
+
+  protected:
+    dbcSignal* m_multiplexor;
+    uint32_t m_id;
+    std::string m_name;
+    int m_size;
+    std::string m_transmitter_node;
   };
 
 typedef std::map<uint32_t, dbcMessage*> dbcMessageEntry_t;
@@ -322,6 +402,7 @@ class dbcMessageTable
     void WriteFile(dbcOutputCallback callback, void* param);
     void WriteFileComments(dbcOutputCallback callback, void* param);
     void WriteFileValues(dbcOutputCallback callback, void* param);
+    void WriteSummary(dbcOutputCallback callback, void* param);
 
   public:
     dbcMessageEntry_t m_entrymap;
@@ -340,6 +421,7 @@ class dbcfile
     bool LoadFile(const char* path, FILE *fd=NULL);
     bool LoadString(const char* source, size_t length);
     void WriteFile(dbcOutputCallback callback, void* param);
+    void WriteSummary(dbcOutputCallback callback, void* param);
     std::string Status();
 
   public:
