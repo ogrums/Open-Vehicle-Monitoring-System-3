@@ -36,6 +36,8 @@
 #include <list>
 #include <functional>
 #include <iostream>
+#include "can.h"
+#include "ovms_metrics.h"
 
 #define DBC_MAX_LINELENGTH 2048
 
@@ -81,14 +83,19 @@ class dbcNumber
 
   public:
     void Clear();
+    bool IsDefined();
+    bool IsInteger();
+    bool IsDouble();
     void Set(int value);
     void Set(double value);
+    int GetInteger();
+    double GetDouble();
     friend std::ostream& operator<<(std::ostream& os, const dbcNumber& me);
     dbcNumber& operator=(const int value);
     dbcNumber& operator=(const double value);
     dbcNumber& operator=(const dbcNumber& value);
 
-  public:
+  protected:
     dbcNumberType_t m_type;
     union
       {
@@ -135,6 +142,7 @@ class dbcNewSymbolTable
 
   public:
     void EmptyContent();
+    int GetCount();
 
   public:
     void WriteFile(dbcOutputCallback callback, void* param);
@@ -158,8 +166,15 @@ class dbcNode
     bool HasComment(std::string comment);
 
   public:
-    std::string m_name;
+    const std::string& GetName();
+    void SetName(const std::string& name);
+    void SetName(const char* name);
+
+  public:
     dbcCommentTable m_comments;
+
+  protected:
+    std::string m_name;
   };
 
 typedef std::map<std::string, dbcNode*> dbcNodeEntry_t;
@@ -173,6 +188,9 @@ class dbcNodeTable
     void AddNode(dbcNode* node);
     void RemoveNode(dbcNode* node, bool free=false);
     dbcNode* FindNode(std::string name);
+
+  public:
+    int GetCount();
 
   public:
     void EmptyContent();
@@ -222,6 +240,9 @@ class dbcValueTable
     void RemoveValue(uint32_t id);
     bool HasValue(uint32_t id);
     std::string GetValue(uint32_t id);
+    const std::string& GetName();
+    void SetName(const std::string& name);
+    void SetName(const char* name);
     int GetCount();
 
   public:
@@ -231,8 +252,10 @@ class dbcValueTable
     void WriteFile(dbcOutputCallback callback, void* param, const char* prefix);
 
   public:
-    std::string m_name;
     dbcValueTableEntry_t m_entrymap;
+
+  protected:
+    std::string m_name;
   };
 
 typedef std::map<std::string, dbcValueTable*> dbcValueTableTableEntry_t;
@@ -309,6 +332,15 @@ class dbcSignal
     void SetUnit(const char* unit);
 
   public:
+    void Encode(dbcNumber& source, struct CAN_frame_t* msg);
+    dbcNumber Decode(struct CAN_frame_t& msg);
+    void DecodeMetric();
+
+  public:
+    void AssignMetric(OvmsMetric* metric);
+    OvmsMetric* GetMetric();
+
+  public:
     void WriteFile(dbcOutputCallback callback, void* param);
     void WriteFileComments(dbcOutputCallback callback, void* param, std::string messageid);
     void WriteFileValues(dbcOutputCallback callback, void* param, std::string messageid);
@@ -330,6 +362,7 @@ class dbcSignal
     dbcNumber m_minimum;
     dbcNumber m_maximum;
     std::string m_unit;
+    OvmsMetric* m_metric;
   };
 
 typedef std::list<dbcSignal*> dbcSignalList_t;
@@ -425,6 +458,11 @@ class dbcfile
     std::string Status();
 
   public:
+    void LockFile();
+    void UnlockFile();
+    bool IsLocked();
+
+  public:
     std::string m_path;
     std::string m_version;
     dbcNewSymbolTable m_newsymbols;
@@ -436,6 +474,7 @@ class dbcfile
 
   private:
     dbcMessage* m_lastmsg;
+    int m_locks;
   };
 
 #endif //#ifndef __DBC_H__
