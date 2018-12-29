@@ -47,6 +47,10 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
   memset(m_type,0,sizeof(m_type));
   m_charge_w = 0;
 
+  StandardMetrics.ms_v_bat_12v_voltage->SetValue(12);
+  StandardMetrics.ms_v_bat_12v_voltage_alert->SetValue(false);
+  StandardMetrics.ms_v_charge_type->SetValue(undefined);
+
   RegisterCanBus(1,CAN_MODE_ACTIVE,CAN_SPEED_250KBPS);
 
   BmsSetCellArrangementVoltage(40, 10);
@@ -75,7 +79,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
     case 0x00FEE04C:
 		{
 		// Estimated range:
-		StdMetrics.ms_v_bat_range_est->SetValue((float) ((d[7] << 24) + (d[6] << 16) + (d[5] << 8) + d[4]) * 0.5, Kilometers);
+		StandardMetrics.ms_v_bat_range_est->SetValue((float) ((d[7] << 24) + (d[6] << 16) + (d[5] << 8) + d[4]) * 0.5, Kilometers);
 		break;
 		}
 
@@ -83,9 +87,9 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 	  case 0x18FEE017:
 		{
 		// Odometer:
-		StdMetrics.ms_v_pos_odometer->SetValue((float) ((d[7] << 24) + (d[6] << 16) + (d[5] << 8) + d[4]) * 0.05, Kilometers);
+		StandardMetrics.ms_v_pos_odometer->SetValue((float) ((d[7] << 24) + (d[6] << 16) + (d[5] << 8) + d[4]) * 0.05, Kilometers);
 		// trip A
-		StdMetrics.ms_v_pos_trip->SetValue((float) ((d[1] << 8) + d[0]) * 0.05, Kilometers);
+		StandardMetrics.ms_v_pos_trip->SetValue((float) ((d[1] << 8) + d[0]) * 0.05, Kilometers);
 		break;
 		}
 
@@ -222,8 +226,8 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 		  {
 		  //m_v_preheat_timer1_enabled->SetValue( d[0] & 0x1 );
 		  //m_v_preheat_timer2_enabled->SetValue( d[3] & 0x1 );
-		  StdMetrics.ms_v_charge_current->SetValue((float) ((d[4] * 0.1) , Amps)); // Charger Output Current
-		  StdMetrics.ms_v_charge_voltage->SetValue((float) ((d[7] > 0), Volts)); // Charger Output Volts
+		  StandardMetrics.ms_v_charge_current->SetValue((float) ((d[4] * 0.1) , Amps)); // Charger Output Current
+		  StandardMetrics.ms_v_charge_voltage->SetValue((float) ((d[7] > 0), Volts)); // Charger Output Volts
 		break;
 		  }
 
@@ -254,9 +258,9 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
         // check If Go Ready "ignition"
         uint8_t indGoReady = ((d[0] & 0x01) || (d[0] & 0x04));
         if ( indGoReady == 5) {
-          StdMetrics.ms_v_env_on->SetValue(true);
+          StandardMetrics.ms_v_env_on->SetValue(true);
         } else {
-          StdMetrics.ms_v_env_on->SetValue(false);
+          StandardMetrics.ms_v_env_on->SetValue(false);
         }
       break;
       }
