@@ -46,10 +46,6 @@
 #define _attr(text) (c.encode_html(text).c_str())
 #define _html(text) (c.encode_html(text).c_str())
 
-// Macro utils:
-#define XSTR(x)   STR(x)
-#define STR(x)    #x
-
 
 /**
  * HandleDashboard:
@@ -490,7 +486,7 @@ void OvmsWebServer::HandleDashboard(PageEntry_t& p, PageContext_t& c)
       "init_charts();"
     "} else {"
       "$.ajax({"
-        "url: \"/assets/charts.js\","
+        "url: \"" URL_ASSETS_CHARTS_JS "\","
         "dataType: \"script\","
         "cache: true,"
         "success: function(){ init_charts(); }"
@@ -1106,7 +1102,7 @@ void OvmsWebServer::HandleBmsCellMonitor(PageEntry_t& p, PageContext_t& c)
       "init_charts();\n"
     "} else {\n"
       "$.ajax({\n"
-        "url: \"/assets/charts.js\",\n"
+        "url: \"" URL_ASSETS_CHARTS_JS "\",\n"
         "dataType: \"script\",\n"
         "cache: true,\n"
         "success: function(){ init_charts(); }\n"

@@ -58,6 +58,7 @@ OvmsWebServer::OvmsWebServer()
 
   m_client_cnt = 0;
   m_client_mutex = xSemaphoreCreateMutex();
+  m_client_backlog = xQueueCreate(50, sizeof(WebSocketTxTodo));
   m_update_ticker = xTimerCreate("Web client update ticker", 250 / portTICK_PERIOD_MS, pdTRUE, NULL, UpdateTicker);
 
   // read config:
@@ -90,10 +91,12 @@ OvmsWebServer::OvmsWebServer()
   // register standard API calls:
   RegisterPage("/api/execute", "Execute command", HandleCommand, PageMenu_None, PageAuth_Cookie);
 
+  // register standard public pages:
+  RegisterPage("/dashboard", "Dashboard", HandleDashboard, PageMenu_Main, PageAuth_None);
+
   // register standard administration pages:
   RegisterPage("/status", "Status", HandleStatus, PageMenu_Main, PageAuth_Cookie);
   RegisterPage("/shell", "Shell", HandleShell, PageMenu_Tools, PageAuth_Cookie);
-  RegisterPage("/dashboard", "Dashboard", HandleDashboard, PageMenu_Main, PageAuth_Cookie);
   RegisterPage("/cfg/init", "Setup wizard", HandleCfgInit, PageMenu_None, PageAuth_Cookie);
   RegisterPage("/cfg/password", "Password", HandleCfgPassword, PageMenu_Config, PageAuth_Cookie);
   RegisterPage("/cfg/vehicle", "Vehicle", HandleCfgVehicle, PageMenu_Config, PageAuth_Cookie);
@@ -116,6 +119,7 @@ OvmsWebServer::OvmsWebServer()
 #endif
   RegisterPage("/cfg/logging", "Logging", HandleCfgLogging, PageMenu_Config, PageAuth_Cookie);
   RegisterPage("/cfg/locations", "Locations", HandleCfgLocations, PageMenu_Config, PageAuth_Cookie);
+  RegisterPage("/cfg/backup", "Backup &amp; Restore", HandleCfgBackup, PageMenu_Config, PageAuth_Cookie);
 }
 
 OvmsWebServer::~OvmsWebServer()

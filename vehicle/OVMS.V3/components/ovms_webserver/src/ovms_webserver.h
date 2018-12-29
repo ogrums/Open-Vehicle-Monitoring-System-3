@@ -35,6 +35,7 @@
 #include <forward_list>
 #include <iterator>
 #include <vector>
+#include <memory>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
@@ -42,9 +43,11 @@
 #include "ovms_events.h"
 #include "ovms_metrics.h"
 #include "ovms_config.h"
+#include "ovms_notify.h"
 #include "ovms_command.h"
 #include "ovms_shell.h"
 #include "ovms_netmanager.h"
+#include "ovms_utils.h"
 
 #define OVMS_GLOBAL_AUTH_FILE     "/store/.htpasswd"
 
@@ -57,6 +60,12 @@
 
 #define WEBSRV_USE_MG_BROADCAST   0  // Note: mg_broadcast() not working reliably yet, do not enable for production!
 
+// Asset URLs with versioning:
+#define URL_ASSETS_SCRIPT_JS      "/assets/script.js?v="       STR(MTIME_ASSETS_SCRIPT_JS)
+#define URL_ASSETS_CHARTS_JS      "/assets/charts.js?v="       STR(MTIME_ASSETS_CHARTS_JS)
+#define URL_ASSETS_STYLE_CSS      "/assets/style.css?v="       STR(MTIME_ASSETS_STYLE_CSS)
+#define URL_ASSETS_FAVICON_PNG    "/apple-touch-icon.png?v="   STR(MTIME_ASSETS_FAVICON_PNG)
+#define URL_ASSETS_ZONES_JSON     "/assets/zones.json?v="      STR(MTIME_ASSETS_ZONES_JSON)
 
 struct user_session {
   uint64_t id;
@@ -257,11 +266,12 @@ class HttpStringSender : public MgHandler
 
 enum WebSocketTxJobType
 {
-  WSTX_None,
+  WSTX_None = 0,
   WSTX_Event,                 // payload: event
   WSTX_MetricsAll,            // payload: -
   WSTX_MetricsUpdate,         // payload: -
   WSTX_Config,                // payload: config (todo)
+  WSTX_Notify,                // payload: notification
 };
 
 struct WebSocketTxJob
@@ -271,40 +281,59 @@ struct WebSocketTxJob
   {
     char*                     event;
     OvmsConfigParam*          config;
+    OvmsNotifyEntry*          notification;
   };
+
+  void clear(size_t client);
+};
+
+struct WebSocketTxTodo
+{
+  int                     client;
+  WebSocketTxJob          job;
 };
 
 class WebSocketHandler : public MgHandler
 {
   public:
-    WebSocketHandler(mg_connection* nc, size_t modifier);
+    WebSocketHandler(mg_connection* nc, size_t slot, size_t modifier, size_t reader);
     ~WebSocketHandler();
 
   public:
     bool Lock(TickType_t xTicksToWait);
     void Unlock();
     bool AddTxJob(WebSocketTxJob job, bool init_tx=true);
-    void FreeTxJob(WebSocketTxJob &job);
+    void ClearTxJob(WebSocketTxJob &job);
     bool GetNextTxJob();
     void InitTx();
     void ContinueTx();
     void ProcessTxJob();
     int HandleEvent(int ev, void* p);
+    void HandleIncomingMsg(std::string msg);
 
   public:
+    void Subscribe(std::string topic);
+    void Unsubscribe(std::string topic);
+    bool IsSubscribedTo(std::string topic);
+
+  public:
+    size_t                    m_slot;
     size_t                    m_modifier;         // "our" metrics modifier
+    size_t                    m_reader;           // "our" notification reader id
     QueueHandle_t             m_jobqueue;
     int                       m_jobqueue_overflow;
     SemaphoreHandle_t         m_mutex;
     WebSocketTxJob            m_job;
     int                       m_sent;
     int                       m_ack;
+    std::set<std::string>     m_subscriptions;
 };
 
 struct WebSocketSlot
 {
   WebSocketHandler*   handler;
   size_t              modifier;
+  size_t              reader;
 };
 
 typedef std::vector<WebSocketSlot> WebSocketSlots;
@@ -365,10 +394,10 @@ class OvmsWebServer : public ExternalRamAllocated
     void UpdateGlobalAuthFile();
     static const std::string MakeDigestAuth(const char* realm, const char* username, const char* password);
     static const std::string ExecuteCommand(const std::string command, int verbosity=COMMAND_RESULT_NORMAL);
-    static void WebsocketBroadcast(const std::string msg);
     void EventListener(std::string event, void* data);
-    void BroadcastMetrics(bool update_all);
     static void UpdateTicker(TimerHandle_t timer);
+    static bool NotificationFilter(int client, OvmsNotifyType* type, const char* subtype);
+    static bool IncomingNotification(int client, OvmsNotifyType* type, OvmsNotifyEntry* entry);
 
   public:
     void RegisterPage(const char* uri, const char* label, PageHandler_t handler,
@@ -386,6 +415,7 @@ class OvmsWebServer : public ExternalRamAllocated
   public:
     WebSocketHandler* CreateWebSocketHandler(mg_connection* nc);
     void DestroyWebSocketHandler(WebSocketHandler* handler);
+    bool AddToBacklog(int client, WebSocketTxJob job);
 
   public:
     static std::string CreateMenu(PageContext_t& c);
@@ -420,6 +450,7 @@ class OvmsWebServer : public ExternalRamAllocated
     static void HandleCfgFirmware(PageEntry_t& p, PageContext_t& c);
     static void HandleCfgLogging(PageEntry_t& p, PageContext_t& c);
     static void HandleCfgLocations(PageEntry_t& p, PageContext_t& c);
+    static void HandleCfgBackup(PageEntry_t& p, PageContext_t& c);
 
   public:
     void CfgInitStartup();
@@ -448,6 +479,7 @@ class OvmsWebServer : public ExternalRamAllocated
     size_t                    m_client_cnt;                 // number of active WebSocket clients
     SemaphoreHandle_t         m_client_mutex;
     WebSocketSlots            m_client_slots;
+    QueueHandle_t             m_client_backlog;
     TimerHandle_t             m_update_ticker;
 
     int                       m_init_timeout;
