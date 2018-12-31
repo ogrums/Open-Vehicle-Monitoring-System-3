@@ -76,9 +76,17 @@ std::string PageContext::encode_html(std::string text) {
 
 
 std::string PageContext::getvar(const char* name, size_t maxlen /*=200*/) {
-  char varbuf[maxlen];
-  mg_get_http_var(&hm->body, name, varbuf, sizeof(varbuf));
-  return std::string(varbuf);
+  std::string res;
+  char* varbuf = new char[maxlen];
+  if (!varbuf)
+    return res;
+  if (method == "POST")
+    mg_get_http_var(&hm->body, name, varbuf, maxlen);
+  else
+    mg_get_http_var(&hm->query_string, name, varbuf, maxlen);
+  res.assign(varbuf);
+  delete[] varbuf;
+  return res;
 }
 
 
@@ -426,8 +434,8 @@ std::string OvmsWebServer::CreateMenu(PageContext_t& c)
       "<li class=\"hidden-xs\"><a href=\"#\" class=\"toggle-fullscreen\">◱</a></li>"
       "<li class=\"hidden-xs\"><a href=\"#\" class=\"toggle-night\">◐</a></li>"
       + std::string(c.session
-      ? "<li><a href=\"/logout\" target=\"#main\">Logout</a></li>"
-      : "<li><a href=\"/login\" target=\"#main\">Login</a></li>") +
+      ? "<li><a href=\"/logout\" target=\"#main\">Logout</a></li><script>loggedin=true</script>"
+      : "<li><a href=\"/login\" target=\"#main\">Login</a></li><script>loggedin=false</script>") +
     "</ul>";
 
   return menu;
