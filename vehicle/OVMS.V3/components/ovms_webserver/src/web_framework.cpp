@@ -522,13 +522,13 @@ void OvmsWebServer::OutputHome(PageEntry_t& p, PageContext_t& c)
   c.panel_start("primary", "Home");
 
   c.printf(
-    "<fieldset><legend>Main menu</legend>"
+    "<fieldset class=\"menu\" id=\"fieldset-menu-main\"><legend>Main menu</legend>"
     "<ul class=\"list-inline\">%s</ul>"
     "</fieldset>"
     , main.c_str());
 
   c.printf(
-    "<fieldset><legend>Tools</legend>"
+    "<fieldset class=\"menu\" id=\"fieldset-menu-tools\"><legend>Tools</legend>"
     "<ul class=\"list-inline\">%s</ul>"
     "</fieldset>"
     , tools.c_str());
@@ -536,14 +536,14 @@ void OvmsWebServer::OutputHome(PageEntry_t& p, PageContext_t& c)
   if (vehicle != "") {
     const char* vehiclename = MyVehicleFactory.ActiveVehicleName();
     mg_printf_http_chunk(c.nc,
-      "<fieldset><legend>%s</legend>"
+      "<fieldset class=\"menu\" id=\"fieldset-menu-vehicle\"><legend>%s</legend>"
       "<ul class=\"list-inline\">%s</ul>"
       "</fieldset>"
       , vehiclename, vehicle.c_str());
   }
 
   c.printf(
-    "<fieldset><legend>Configuration</legend>"
+    "<fieldset class=\"menu\" id=\"fieldset-menu-config\"><legend>Configuration</legend>"
     "<ul class=\"list-inline\">%s</ul>"
     "</fieldset>"
     , config.c_str());
@@ -623,6 +623,7 @@ void OvmsWebServer::HandleRoot(PageEntry_t& p, PageContext_t& c)
         "</nav>"
         "<div role=\"main\" id=\"main\" class=\"container-fluid\">"
         "</div>"
+        "<script>window.assets={\"charts_js\":\"" URL_ASSETS_CHARTS_JS "\"}</script>"
         "<script src=\"" URL_ASSETS_SCRIPT_JS "\"></script>");
   PAGE_HOOK("body.post");
   c.print(
