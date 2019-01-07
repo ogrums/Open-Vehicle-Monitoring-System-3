@@ -2501,15 +2501,6 @@ static void OutputPluginEditor(PageEntry_t& p, PageContext_t& c)
   }
 
   c.printf(
-    "<style>\n"
-    ".textarea-control .btn {\n"
-      "font-weight: bold;\n"
-      "font-size: 16px;\n"
-      "line-height: 16px;\n"
-      "padding: 4px 15px 2px;\n"
-    "}\n"
-    "</style>\n"
-    "\n"
     "<div class=\"panel panel-primary\">\n"
       "<div class=\"panel-heading\">Plugin Editor: <code>%s</code></div>\n"
       "<div class=\"panel-body\">\n"
@@ -2598,9 +2589,11 @@ static void OutputPluginEditor(PageEntry_t& p, PageContext_t& c)
               "<button type=\"button\" class=\"btn btn-sm btn-default tac-smaller\">&minus;</button>\n"
               "<button type=\"button\" class=\"btn btn-sm btn-default tac-larger\">&plus;</button>\n"
             "</div>\n"
-            "<textarea class=\"form-control font-monospace\" style=\"max-width:100%; min-width:100%; height:300px; white-space:pre; font-size:13px;\" id=\"input-content\" rows=\"20\" name=\"content\">%s</textarea>\n"
+            "<textarea class=\"form-control fullwidth font-monospace\" rows=\"20\"\n"
+              "autocapitalize=\"none\" autocorrect=\"off\" autocomplete=\"off\" spellcheck=\"false\"\n"
+              "id=\"input-content\" name=\"content\">%s</textarea>\n"
           "</div>\n"
-          , _html(content.c_str()));
+          , c.encode_html(content).c_str());
 
   c.print(
           "<div class=\"text-center\">\n"
@@ -2611,30 +2604,31 @@ static void OutputPluginEditor(PageEntry_t& p, PageContext_t& c)
         "</form>\n"
       "</div>\n"
     "</div>\n"
-    "\n"
     "<script>\n"
-    "\n"
+    "$('.action-cancel').on('click', function(ev) {\n"
+      "loaduri('#main', 'get', 'plugin_list.htm');\n"
+    "});\n"
+    "/* textarea controls */\n"
     "$('.tac-wrap').on('click', function(ev) {\n"
       "var $this = $(this), $ta = $this.parent().next();\n"
-      "$ta.css(\"white-space\", $this.hasClass(\"active\") ? \"pre\" : \"pre-wrap\").focus();\n"
       "$this.toggleClass(\"active\");\n"
+      "$ta.css(\"white-space\", $this.hasClass(\"active\") ? \"pre-wrap\" : \"pre\");\n"
+      "if (!supportsTouch) $ta.focus();\n"
     "});\n"
     "$('.tac-smaller').on('click', function(ev) {\n"
       "var $this = $(this), $ta = $this.parent().next();\n"
       "var fs = parseInt($ta.css(\"font-size\"));\n"
-      "$ta.css(\"font-size\", (fs-1)+\"px\").focus();\n"
+      "$ta.css(\"font-size\", (fs-1)+\"px\");\n"
+      "if (!supportsTouch) $ta.focus();\n"
     "});\n"
     "$('.tac-larger').on('click', function(ev) {\n"
       "var $this = $(this), $ta = $this.parent().next();\n"
       "var fs = parseInt($ta.css(\"font-size\"));\n"
-      "$ta.css(\"font-size\", (fs+1)+\"px\").focus();\n"
+      "$ta.css(\"font-size\", (fs+1)+\"px\");\n"
+      "if (!supportsTouch) $ta.focus();\n"
     "});\n"
-    "\n"
-    "$('.action-cancel').on('click', function(ev) {\n"
-      "loaduri('#main', 'get', '/cfg/plugins');\n"
-    "});\n"
-    "\n"
-    "</script>\n");
+    "</script>\n"
+    );
 }
 
 static bool SavePluginEditor(PageEntry_t& p, PageContext_t& c, std::string& error)
@@ -2668,8 +2662,9 @@ static bool SavePluginEditor(PageEntry_t& p, PageContext_t& c, std::string& erro
   std::ofstream file(path, std::ios::out | std::ios::trunc);
   if (file.is_open()) {
     file.write(content.data(), content.size());
-  } else {
-    error += "<li>Could not save plugin content to <code>" + path + "</code>!</li>";
+  }
+  if (file.fail()) {
+    error += "<li>Error writing to <code>" + c.encode_html(path) + "</code>: " + strerror(errno) + "</li>";
     return false;
   }
 
@@ -2691,7 +2686,7 @@ void OvmsWebServer::HandleCfgPlugins(PageEntry_t& p, PageContext_t& c)
     }
     else if (key != "") {
       if (SavePluginEditor(p, c, error)) {
-        info = "<p class=\"lead\">Plugin <code>" + key + "</code> saved.</p>"
+        info = "<p class=\"lead\">Plugin <code>" + c.encode_html(key) + "</code> saved.</p>"
           "<script>$(\"#menu\").load(\"/menu\")</script>";
         key = "";
       }
@@ -2712,6 +2707,183 @@ void OvmsWebServer::HandleCfgPlugins(PageEntry_t& p, PageContext_t& c)
     OutputPluginList(p, c);
   else
     OutputPluginEditor(p, c);
+
+  c.done();
+}
+
+
+/**
+ * HandleEditor: simple text file editor
+ */
+void OvmsWebServer::HandleEditor(PageEntry_t& p, PageContext_t& c)
+{
+  std::string error, info;
+  std::string path = c.getvar("path");
+  extram::string content;
+
+  if (MyConfig.ProtectedPath(path)) {
+    c.head(400);
+    c.alert("danger", "<p class=\"lead\">Error: protected path</p>");
+    c.done();
+    return;
+  }
+
+  if (c.method == "POST")
+  {
+    bool got_content = c.getvar("content", content);
+
+    if (path == "") {
+      error += "<li>Missing path!</li>";
+    }
+    else if (!got_content) {
+      error += "<li>Missing content!</li>";
+    }
+    else {
+      // write file:
+      std::ofstream file(path, std::ios::out | std::ios::trunc);
+      if (file.is_open())
+        file.write(content.data(), content.size());
+      if (file.fail())
+        error += "<li>Error writing to <code>" + c.encode_html(path) + "</code>: " + strerror(errno) + "</li>";
+      else
+        info += "<p class=\"lead\">File <code>" + c.encode_html(path) + "</code> saved.</p>";
+    }
+  }
+  else
+  {
+    if (path != "") {
+      // read file:
+      std::ifstream file(path, std::ios::ate);
+      if (file.is_open()) {
+        auto size = file.tellg();
+        content.resize(size, '\0');
+        file.seekg(0);
+        file.read(&content[0], size);
+      }
+    }
+  }
+
+  // output:
+  if (error != "") {
+    error = "<p class=\"lead\">Error!</p><ul class=\"errorlist\">" + error + "</ul>";
+    c.head(400);
+    c.alert("danger", error.c_str());
+  } else {
+    c.head(200);
+    if (info != "")
+      c.alert("success", info.c_str());
+  }
+
+  c.printf(
+    "<div class=\"panel panel-primary\">\n"
+      "<div class=\"panel-heading\">Text Editor</div>\n"
+      "<div class=\"panel-body\">\n"
+        "<form method=\"post\" action=\"%s\" target=\"#main\">\n"
+          "<div class=\"form-group\">\n"
+            "<div class=\"flex-group\">\n"
+              "<button type=\"button\" class=\"btn btn-default action-open\">Open…</button>\n"
+              "<input type=\"text\" class=\"form-control font-monospace\" placeholder=\"File path\"\n"
+                "name=\"path\" id=\"input-path\" value=\"%s\" autocapitalize=\"none\" autocorrect=\"off\"\n"
+                "autocomplete=\"off\" spellcheck=\"false\">\n"
+            "</div>\n"
+          "</div>\n"
+    , _attr(p.uri), _attr(path));
+
+  c.printf(
+          "<div class=\"form-group\">\n"
+            "<div class=\"textarea-control pull-right\">\n"
+              "<button type=\"button\" class=\"btn btn-sm btn-default tac-wrap\" title=\"Wrap lines\">⇌</button>\n"
+              "<button type=\"button\" class=\"btn btn-sm btn-default tac-smaller\">&minus;</button>\n"
+              "<button type=\"button\" class=\"btn btn-sm btn-default tac-larger\">&plus;</button>\n"
+            "</div>\n"
+            "<textarea class=\"form-control fullwidth font-monospace\" rows=\"20\"\n"
+              "autocapitalize=\"none\" autocorrect=\"off\" autocomplete=\"off\" spellcheck=\"false\"\n"
+              "id=\"input-content\" name=\"content\">%s</textarea>\n"
+          "</div>\n"
+          "<div class=\"text-center\">\n"
+            "<button type=\"reset\" class=\"btn btn-default\">Reset</button>\n"
+            "<button type=\"button\" class=\"btn btn-default action-reload\">Reload</button>\n"
+            "<button type=\"button\" class=\"btn btn-default action-saveas\">Save as…</button>\n"
+            "<button type=\"button\" class=\"btn btn-primary action-save\">Save</button>\n"
+          "</div>\n"
+        "</form>\n"
+        "<div class=\"filedialog\" id=\"fileselect\" />\n"
+      "</div>\n"
+    "</div>\n"
+    , c.encode_html(content).c_str());
+
+  c.print(
+    "<script>\n"
+    "(function(){\n"
+      "var path = $('#input-path').val();\n"
+      "var quicknav = ['/sd/', '/store/'];\n"
+      "var dir = path.replace(/[^/]*$/, '');\n"
+      "if (dir && dir.length > 1 && quicknav.indexOf(dir) < 0)\n"
+        "quicknav.push(dir);\n"
+      "$(\"#fileselect\").filedialog({\n"
+        "\"path\": path,\n"
+        "\"quicknav\": quicknav,\n"
+      "});\n"
+      "$('#input-path').on('keydown', function(ev) {\n"
+        "if (ev.which == 13) {\n"
+          "ev.preventDefault();\n"
+          "return false;\n"
+        "}\n"
+      "});\n"
+      "$('.action-open').on('click', function() {\n"
+        "$(\"#fileselect\").filedialog('show', {\n"
+          "title: \"Load File\",\n"
+          "submit: \"Load\",\n"
+          "onSubmit: function(input) {\n"
+            "if (input.file)\n"
+              "loaduri(\"#main\", \"get\", page.path, { \"path\": input.path });\n"
+          "},\n"
+        "});\n"
+      "});\n"
+      "$('.action-saveas').on('click', function() {\n"
+        "$(\"#fileselect\").filedialog('show', {\n"
+          "title: \"Save File\",\n"
+          "submit: \"Save\",\n"
+          "onSubmit: function(input) {\n"
+            "if (input.file) {\n"
+              "$('#input-path').val(input.path);\n"
+              "$('form').submit();\n"
+            "}\n"
+          "},\n"
+        "});\n"
+      "});\n"
+      "$('.action-save').on('click', function() {\n"
+        "path = $('#input-path').val();\n"
+        "if (path)\n"
+          "$('form').submit();\n"
+      "});\n"
+      "$('.action-reload').on('click', function() {\n"
+        "path = $('#input-path').val();\n"
+        "if (path)\n"
+          "loaduri(\"#main\", \"get\", page.path, { \"path\": path });\n"
+      "});\n"
+      "/* textarea controls */\n"
+      "$('.tac-wrap').on('click', function(ev) {\n"
+        "var $this = $(this), $ta = $this.parent().next();\n"
+        "$this.toggleClass(\"active\");\n"
+        "$ta.css(\"white-space\", $this.hasClass(\"active\") ? \"pre-wrap\" : \"pre\");\n"
+        "if (!supportsTouch) $ta.focus();\n"
+      "});\n"
+      "$('.tac-smaller').on('click', function(ev) {\n"
+        "var $this = $(this), $ta = $this.parent().next();\n"
+        "var fs = parseInt($ta.css(\"font-size\"));\n"
+        "$ta.css(\"font-size\", (fs-1)+\"px\");\n"
+        "if (!supportsTouch) $ta.focus();\n"
+      "});\n"
+      "$('.tac-larger').on('click', function(ev) {\n"
+        "var $this = $(this), $ta = $this.parent().next();\n"
+        "var fs = parseInt($ta.css(\"font-size\"));\n"
+        "$ta.css(\"font-size\", (fs+1)+\"px\");\n"
+        "if (!supportsTouch) $ta.focus();\n"
+      "});\n"
+    "})();\n"
+    "</script>\n"
+    );
 
   c.done();
 }

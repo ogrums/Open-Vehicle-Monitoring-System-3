@@ -1313,6 +1313,24 @@ $(function(){
       $(this).closest(".modal").removeClass("fade").modal("hide");
     if (!loaduri(target, method, uri, data))
       return true;
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+  });
+  $('body').on('submit', 'form[target^="#"]', function(event) {
+    var $frm = $(this);
+    var method = $frm.attr("method") || "get";
+    var uri = $frm.attr("action");
+    var target = $frm.attr("target");
+    var data = $frm.serialize();
+    var $btn = $frm.find('input[type="submit"], button[type="submit"]').first();
+    if ($btn.length && $btn.attr("name"))
+      data += (data?"&":"") + encodeURI($btn.attr("name") +"="+ ($btn.val()||"1"));
+    if ($frm.data("dismiss") == "modal" || $btn.data("dismiss") == "modal")
+      $frm.closest(".modal").removeClass("fade").modal("hide");
+    if (!loaduri(target, method, uri, data))
+      return true;
+    event.preventDefault();
     event.stopPropagation();
     return false;
   });
@@ -1374,26 +1392,44 @@ $(function(){
 
   // Slider widget:
   $("body").on("change", ".slider-enable", function(evt) {
-    var slider = $(this).closest(".slider");
-    slider.find("input[type=number]").prop("disabled", !this.checked).trigger("input");
-    slider.find("input[type=range]").prop("disabled", !this.checked).trigger("input");
+    var $this = $(this), slider = $this.closest(".slider"), data = $this.data(),
+      $inp = slider.find(".slider-input, .slider-value");
+    if (this.checked) {
+      if (data["value"] != null && data["reset"] != true)
+        $inp.val(data["value"]);
+    } else {
+      $this.data("value", $inp.val());
+      if (data["default"] != null)
+        $inp.val(data["default"]);
+    }
+    $inp.prop("disabled", !this.checked).trigger("input").trigger("change");
     slider.find("input[type=button]").prop("disabled", !this.checked);
   });
-  $("body").on("input", ".slider-value", function(evt) {
-    $(this).closest(".slider").find(".slider-input").val(this.value);
+  $("body").on("input change", ".slider-value", function(evt, noprop) {
+    var $inp = $(this).closest(".slider").find(".slider-input");
+    $(this).val(Math.max(this.min, Math.min(this.max, 1*this.value)));
+    $inp.val(this.value);
+    if (!noprop) $inp.trigger(evt.type, true);
   });
-  $("body").on("input", ".slider-input", function(evt) {
-    if (this.disabled)
-      this.value = $(this).data("default");
-    $(this).closest(".slider").find(".slider-value").val(this.value);
+  $("body").on("input change", ".slider-input", function(evt, noprop) {
+    var $inp = $(this).closest(".slider").find(".slider-value");
+    $(this).val(Math.max(this.min, Math.min(this.max, 1*this.value)));
+    $inp.val(this.value);
+    if (!noprop) $inp.trigger(evt.type, true);
   });
   $("body").on("click", ".slider-up", function(evt) {
-    $(this).closest(".slider").find(".slider-input")
-      .val(function(){return 1*this.value + 1;}).trigger("input");
+    $(this).closest(".slider").find(".slider-input").val(function() {
+      return Math.min(1*this.value + (1*this.step||1), this.max);
+    }).trigger("input").trigger("change");
   });
   $("body").on("click", ".slider-down", function(evt) {
-    $(this).closest(".slider").find(".slider-input")
-      .val(function(){return 1*this.value - 1;}).trigger("input");
+    $(this).closest(".slider").find(".slider-input").val(function() {
+      return Math.max(1*this.value - (1*this.step||1), this.min);
+    }).trigger("input").trigger("change");
+  });
+  $("body").on("click", ".slider-set", function(evt) {
+    var $inp = $(this).closest(".slider").find(".slider-input");
+    $inp.val($(this).data("set")).trigger("input").trigger("change");
   });
 
   // data-toggle="filefialog":
