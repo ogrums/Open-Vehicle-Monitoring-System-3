@@ -289,11 +289,11 @@ var shellhist = [""], shellhpos = 0;
 function initSocketConnection(){
   ws = new WebSocket('ws://' + location.host + '/msg');
   ws.onopen = function(ev) {
-    console.log(ev);
+    console.log("WebSocket OPENED", ev);
     $(".receiver").subscribe();
   };
-  ws.onerror = function(ev) { console.log(ev); };
-  ws.onclose = function(ev) { console.log(ev); };
+  ws.onerror = function(ev) { console.log("WebSocket ERROR", ev); };
+  ws.onclose = function(ev) { console.log("WebSocket CLOSED", ev); };
   ws.onmessage = function(ev) {
     var msg;
     try {
@@ -1196,6 +1196,69 @@ $.fn.listEditor = function(op, data){
 
 
 /**
+ * Slider widget plugin
+ */
+
+$.fn.slider = function(options) {
+  return this.each(function() {
+    var $sld = $(this).closest('.slider');
+    var opts = (typeof options == "object") ? options : $sld.data();
+    // init?
+    if ($sld.children().length == 0) {
+      var id = $sld.attr('id');
+      $sld.html('\
+        <div class="slider-control form-inline">\
+          <input class="slider-enable" type="checkbox" checked>\
+          <input class="form-control slider-value" type="number" id="input-ID" name="ID">\
+          <span class="slider-unit">UNIT</span>\
+          <input class="btn btn-default slider-down" type="button" value="➖">\
+          <input class="btn btn-default slider-set" type="button" value="◈">\
+          <input class="btn btn-default slider-up" type="button" value="➕">\
+        </div>\
+        <input class="slider-input" type="range">'
+        .replace(/ID/g, id).replace(/UNIT/g, opts.unit||''));
+    }
+    // update:
+    var $inp = $sld.find('.slider-value, .slider-input'),
+      $cb = $sld.find('.slider-enable'), oldchk = ($cb.prop('checked')==true),
+      $bt = $sld.find('input[type=button]'), $sb = $bt.filter('.slider-set'),
+      chk = (opts.checked != null) ? opts.checked : oldchk,
+      dis = (opts.disabled != null) ? opts.disabled : ($sld.prop('disabled')==true);
+    if (opts.unit != null) $sld.find('.slider-unit').html(opts.unit);
+    if (opts.min != null) $inp.attr('min', opts.min); else opts.min = $inp.attr('min');
+    if (opts.max != null) $inp.attr('max', opts.max); else opts.max = $inp.attr('max');
+    if (opts.step != null) $inp.attr('step', opts.step);
+    if (opts.reset != null) $cb.data('reset', opts.reset);
+    if (opts.default != null) {
+      $sb.data('set', opts.default);
+      $cb.data('default', opts.default);
+      if (!oldchk) $inp.val(opts.default);
+    }
+    if (opts.value != null) {
+      opts.value = Math.max(opts.min, Math.min(opts.max, 1*opts.value));
+      $cb.data('value', opts.value);
+      if (oldchk)
+        $inp.attr('value', opts.value).val(opts.value);
+    }
+    if (chk != oldchk) {
+      $cb.prop('checked', chk);
+      if (chk)
+        $inp.val($cb.data('value'));
+      else
+        $inp.val($cb.data('default'));
+    }
+    $cb.prop('disabled', dis);
+    $bt.prop('disabled', !chk || dis);
+    $inp.prop('disabled', !chk || dis).prop('checked', chk);
+    if (dis)
+      $sld.addClass('disabled').prop('disabled', true).attr('disabled', true);
+    else
+      $sld.removeClass('disabled').prop('disabled', false).attr('disabled', false);
+  });
+};
+
+
+/**
  * Highcharts
  */
 
@@ -1390,7 +1453,7 @@ $(function(){
     }
   });
 
-  // Slider widget:
+  // Slider widget event handling:
   $("body").on("change", ".slider-enable", function(evt) {
     var $this = $(this), slider = $this.closest(".slider"), data = $this.data(),
       $inp = slider.find(".slider-input, .slider-value");
@@ -1402,8 +1465,8 @@ $(function(){
       if (data["default"] != null)
         $inp.val(data["default"]);
     }
-    $inp.prop("disabled", !this.checked).trigger("input").trigger("change");
-    slider.find("input[type=button]").prop("disabled", !this.checked);
+    $(this).slider({ checked: this.checked });
+    $inp.trigger("input", true).trigger("change", true);
   });
   $("body").on("input change", ".slider-value", function(evt, noprop) {
     var $inp = $(this).closest(".slider").find(".slider-input");
