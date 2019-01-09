@@ -314,7 +314,7 @@ void OvmsWebServer::HandleShell(PageEntry_t& p, PageContext_t& c)
     "<script>"
     "$(window).on(\"resize\", function(){"
       "var pad = Number.parseInt($(\"#output\").parent().css(\"padding-top\")) + Number.parseInt($(\"#output\").parent().css(\"padding-bottom\"));"
-      "var h = $(window).height() - $(\"#output\").offset().top - pad - 73;"
+      "var h = $(window).height() - $(\"#output\").offset().top - pad - 81;"
       "if ($(window).width() <= 767) h += 27;"
       "if ($(\"body\").hasClass(\"fullscreened\")) h -= 4;"
       "$(\"#output\").height(h);"
@@ -2657,6 +2657,7 @@ static bool SavePluginEditor(PageEntry_t& p, PageContext_t& c, std::string& erro
 
   // write plugin content:
   c.getvar("content", content);
+  content = stripcr(content);
   mkpath("/store/plugin");
   std::string path = "/store/plugin/" + key;
   std::ofstream file(path, std::ios::out | std::ios::trunc);
@@ -2681,13 +2682,13 @@ void OvmsWebServer::HandleCfgPlugins(PageEntry_t& p, PageContext_t& c)
     if (cnt != "") {
       if (SavePluginList(p, c, error)) {
         info = "<p class=\"lead\">Plugin registration saved.</p>"
-          "<script>$(\"#menu\").load(\"/menu\")</script>";
+          "<script>after(0.5, reloadmenu)</script>";
       }
     }
     else if (key != "") {
       if (SavePluginEditor(p, c, error)) {
         info = "<p class=\"lead\">Plugin <code>" + c.encode_html(key) + "</code> saved.</p>"
-          "<script>$(\"#menu\").load(\"/menu\")</script>";
+          "<script>after(0.5, reloadmenu)</script>";
         key = "";
       }
     }
@@ -2731,6 +2732,7 @@ void OvmsWebServer::HandleEditor(PageEntry_t& p, PageContext_t& c)
   if (c.method == "POST")
   {
     bool got_content = c.getvar("content", content);
+    content = stripcr(content);
 
     if (path == "") {
       error += "<li>Missing path!</li>";
