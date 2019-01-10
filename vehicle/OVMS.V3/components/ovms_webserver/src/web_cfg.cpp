@@ -1249,7 +1249,7 @@ void OvmsWebServer::UpdateWifiTable(PageEntry_t& p, PageContext_t& c, const std:
 void OvmsWebServer::HandleCfgAutoInit(PageEntry_t& p, PageContext_t& c)
 {
   std::string error, warn;
-  bool init, ext12v, modem, server_v2, server_v3;
+  bool init, ext12v, modem, server_v2, server_v3, scripting;
 #ifdef CONFIG_OVMS_COMP_RE_TOOLS
   bool dbc;
 #endif
@@ -1265,6 +1265,7 @@ void OvmsWebServer::HandleCfgAutoInit(PageEntry_t& p, PageContext_t& c)
     modem = (c.getvar("modem") == "yes");
     server_v2 = (c.getvar("server_v2") == "yes");
     server_v3 = (c.getvar("server_v3") == "yes");
+    scripting = (c.getvar("scripting") == "yes");
     vehicle_type = c.getvar("vehicle_type");
     obd2ecu = c.getvar("obd2ecu");
     wifi_mode = c.getvar("wifi_mode");
@@ -1315,6 +1316,7 @@ void OvmsWebServer::HandleCfgAutoInit(PageEntry_t& p, PageContext_t& c)
       MyConfig.SetParamValueBool("auto", "modem", modem);
       MyConfig.SetParamValueBool("auto", "server.v2", server_v2);
       MyConfig.SetParamValueBool("auto", "server.v3", server_v3);
+      MyConfig.SetParamValueBool("auto", "scripting", scripting);
       MyConfig.SetParamValue("auto", "vehicle.type", vehicle_type);
       MyConfig.SetParamValue("auto", "obd2ecu", obd2ecu);
       MyConfig.SetParamValue("auto", "wifi.mode", wifi_mode);
@@ -1350,6 +1352,7 @@ void OvmsWebServer::HandleCfgAutoInit(PageEntry_t& p, PageContext_t& c)
     modem = MyConfig.GetParamValueBool("auto", "modem", false);
     server_v2 = MyConfig.GetParamValueBool("auto", "server.v2", false);
     server_v3 = MyConfig.GetParamValueBool("auto", "server.v3", false);
+    scripting = MyConfig.GetParamValueBool("auto", "scripting", true);
     vehicle_type = MyConfig.GetParamValue("auto", "vehicle.type");
     obd2ecu = MyConfig.GetParamValue("auto", "obd2ecu");
     wifi_mode = MyConfig.GetParamValue("auto", "wifi.mode", "ap");
@@ -1368,6 +1371,9 @@ void OvmsWebServer::HandleCfgAutoInit(PageEntry_t& p, PageContext_t& c)
   c.input_checkbox("Enable auto start", "init", init,
     "<p>Note: if a crash occurs within 10 seconds after powering the module, autostart will be temporarily"
     " disabled. You may need to use the USB shell to access the module and fix the config.</p>");
+
+  c.input_checkbox("Enable scripting", "scripting", scripting,
+    "<p>Enable execution of user scripts as commands and on events.</p>");
 
 #ifdef CONFIG_OVMS_COMP_RE_TOOLS
   c.input_checkbox("Autoload DBC files", "dbc", dbc,
@@ -2627,6 +2633,16 @@ static void OutputPluginEditor(PageEntry_t& p, PageContext_t& c)
       "$ta.css(\"font-size\", (fs+1)+\"px\");\n"
       "if (!supportsTouch) $ta.focus();\n"
     "});\n"
+    "/* remember textarea config: */\n"
+    "window.prefs = $.extend({ plugineditor: { height: '300px', wrap: false, fontsize: '13px' } }, window.prefs);\n"
+    "$('#input-content').css(\"height\", prefs.plugineditor.height).css(\"font-size\", prefs.plugineditor.fontsize);\n"
+    "if (prefs.plugineditor.wrap) $('.tac-wrap').trigger('click');\n"
+    "$('#input-content, .textarea-control').on('click', function(ev) {\n"
+      "$ta = $('#input-content');\n"
+      "prefs.plugineditor.height = $ta.css(\"height\");\n"
+      "prefs.plugineditor.fontsize = $ta.css(\"font-size\");\n"
+      "prefs.plugineditor.wrap = $('.tac-wrap').hasClass(\"active\");\n"
+    "});\n"
     "</script>\n"
     );
 }
@@ -2882,6 +2898,16 @@ void OvmsWebServer::HandleEditor(PageEntry_t& p, PageContext_t& c)
         "var fs = parseInt($ta.css(\"font-size\"));\n"
         "$ta.css(\"font-size\", (fs+1)+\"px\");\n"
         "if (!supportsTouch) $ta.focus();\n"
+      "});\n"
+      "/* remember textarea config: */\n"
+      "window.prefs = $.extend({ texteditor: { height: '300px', wrap: false, fontsize: '13px' } }, window.prefs);\n"
+      "$('#input-content').css(\"height\", prefs.texteditor.height).css(\"font-size\", prefs.texteditor.fontsize);\n"
+      "if (prefs.texteditor.wrap) $('.tac-wrap').trigger('click');\n"
+      "$('#input-content, .textarea-control').on('click', function(ev) {\n"
+        "$ta = $('#input-content');\n"
+        "prefs.texteditor.height = $ta.css(\"height\");\n"
+        "prefs.texteditor.fontsize = $ta.css(\"font-size\");\n"
+        "prefs.texteditor.wrap = $('.tac-wrap').hasClass(\"active\");\n"
       "});\n"
     "})();\n"
     "</script>\n"
