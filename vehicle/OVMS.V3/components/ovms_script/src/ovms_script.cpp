@@ -51,6 +51,49 @@ OvmsScripts MyScripts __attribute__ ((init_priority (1600)));
 
 OvmsWriter* duktapewriter = NULL;
 
+DuktapeObjectRegistration::DuktapeObjectRegistration(const char* name)
+  {
+  m_name = name;
+  }
+
+DuktapeObjectRegistration::~DuktapeObjectRegistration()
+  {
+  }
+
+const char* DuktapeObjectRegistration::GetName()
+  {
+  return m_name;
+  }
+
+void DuktapeObjectRegistration::RegisterDuktapeFunction(duk_c_function func, duk_idx_t nargs, const char* name)
+  {
+  duktape_registerfunction_t* fn = new duktape_registerfunction_t;
+  fn->func = func;
+  fn->nargs = nargs;
+  m_fnmap[name] = fn;
+  }
+
+void DuktapeObjectRegistration::RegisterWithDuktape(duk_context* ctx)
+  {
+  duk_push_object(ctx);
+
+  DuktapeFunctionMap::iterator itm=m_fnmap.begin();
+  while (itm!=m_fnmap.end())
+    {
+    const char* name = itm->first;
+    duktape_registerfunction_t* fn = itm->second;
+    ESP_LOGD(TAG,"Duktape: Pre-Registered object %s function %s",m_name,name);
+    duk_push_c_function(ctx, fn->func, fn->nargs);
+    duk_push_string(ctx, "name");
+    duk_push_string(ctx, name);
+    duk_def_prop(ctx, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_FORCE);  /* Improve stacktraces by displaying function name */
+    duk_put_prop_string(ctx, -2, name);
+    ++itm;
+    }
+
+  duk_put_global_string(ctx, m_name);
+  }
+
 static duk_int_t duk__eval_module_source(duk_context *ctx, void *udata);
 static void duk__push_module_object(duk_context *ctx, const char *id, duk_bool_t main);
 
@@ -424,15 +467,22 @@ static duk_ret_t DukOvmsLoadModule(duk_context *ctx)
   duk_get_prop_string(ctx, 2, "filename");
   filename = duk_require_string(ctx, -1);
 
-  if (strcmp(module_id,"int/pubsub.js")==0)
+  if (strncmp(module_id,"int/",4)==0)
     {
-    // Load from internal RAM
-    extern const char mod_pubsub_js_start[]     asm("_binary_pubsub_js_start");
-    extern const char mod_pubsub_js_end[]       asm("_binary_pubsub_js_end");
-    duk_size_t length = mod_pubsub_js_end - mod_pubsub_js_start;
-    ESP_LOGD(TAG,"load_cb: id:'%s' (internally provided %d bytes)", module_id, length);
-    duk_push_lstring(ctx, mod_pubsub_js_start, length);
-    return 1;
+    // Load internal module
+    std::string name(module_id+4,strlen(module_id)-7);
+    duktape_registermodule_t* mod = MyScripts.FindDuktapeModule(name.c_str());
+    if (mod == NULL)
+      {
+      duk_error(ctx, DUK_ERR_TYPE_ERROR, "load_cb: cannot find internal module: %s", module_id);
+      return 0;
+      }
+    else
+      {
+      ESP_LOGD(TAG,"load_cb: id:'%s' (internally provided %d bytes)", module_id, mod->length);
+      duk_push_lstring(ctx, mod->start, mod->length);
+      return 1;
+      }
     }
 
   ESP_LOGD(TAG,"load_cb: id:'%s', filename:'%s'", module_id, filename);
@@ -448,7 +498,8 @@ static duk_ret_t DukOvmsLoadModule(duk_context *ctx)
     }
   if (sf == NULL)
     {
-    duk_error(ctx, DUK_ERR_TYPE_ERROR, "cannot find module: %s", module_id);
+    duk_error(ctx, DUK_ERR_TYPE_ERROR, "load_cb: cannot find module: %s", module_id);
+    return 0;
     }
   else
     {
@@ -508,6 +559,28 @@ void OvmsScripts::RegisterDuktapeFunction(duk_c_function func, duk_idx_t nargs, 
     dmsg.body.dt_register.name = name;
     DuktapeDispatch(&dmsg);
     }
+  }
+
+void OvmsScripts::RegisterDuktapeModule(const char* start, size_t length, const char* name)
+  {
+  duktape_registermodule_t* mn = new duktape_registermodule_t;
+  mn->start = start;
+  mn->length = length;
+  m_modmap[name] = mn;
+  }
+
+duktape_registermodule_t* OvmsScripts::FindDuktapeModule(const char* name)
+  {
+  auto mod = m_modmap.find(name);
+  if (mod == m_modmap.end())
+    { return NULL; }
+  else
+    { return mod->second; }
+  }
+
+void OvmsScripts::RegisterDuktapeObject(DuktapeObjectRegistration* ob)
+  {
+  m_obmap[ob->GetName()] = ob;
   }
 
 void OvmsScripts::AutoInitDuktape()
@@ -580,6 +653,14 @@ void OvmsScripts::DuktapeReload()
   DuktapeDispatchWait(&dmsg);
   }
 
+void OvmsScripts::DuktapeCompact()
+  {
+  duktape_queue_t dmsg;
+  memset(&dmsg, 0, sizeof(dmsg));
+  dmsg.type = DUKTAPE_compact;
+  DuktapeDispatchWait(&dmsg);
+  }
+
 void *DukAlloc(void *udata, duk_size_t size)
   {
   return NULL;
@@ -610,21 +691,50 @@ void OvmsScripts::DukTapeInit()
       {
       const char* name = itm->first;
       duktape_registerfunction_t* fn = itm->second;
-      ESP_LOGI(TAG,"Duktape: Pre-Registered function %s",name);
+      ESP_LOGD(TAG,"Duktape: Pre-Registered function %s",name);
       duk_push_c_function(m_dukctx, fn->func, fn->nargs);
       duk_put_global_string(m_dukctx, name);
       ++itm;
       }
     }
 
-  // Load standard modules...
-  ESP_LOGI(TAG,"Duktape: Preload internal module PubSub");
-  duk_push_string(m_dukctx, "(function(){PubSub=require(\"int/pubsub\");})();");
-  if (duk_peval(m_dukctx) != 0)
+  if (m_obmap.size() > 0)
     {
-    ESP_LOGE(TAG,"Duktape: %s",duk_safe_to_string(m_dukctx, -1));
+    // We have some objects to register...
+    DuktapeObjectMap::iterator itm=m_obmap.begin();
+    while (itm!=m_obmap.end())
+      {
+      const char* name = itm->first;
+      DuktapeObjectRegistration* ob = itm->second;
+      ESP_LOGD(TAG,"Duktape: Pre-Registered object %s",name);
+      ob->RegisterWithDuktape(m_dukctx);
+      ++itm;
+      }
     }
-  duk_pop(m_dukctx);
+
+  // Load registered modules
+  if (m_modmap.size() > 0)
+    {
+    // We have some modules to register...
+    DuktapeModuleMap::iterator itm=m_modmap.begin();
+    while (itm!=m_modmap.end())
+      {
+      const char* name = itm->first;
+      ESP_LOGD(TAG,"Duktape: Pre-Registered module %s",name);
+      std::string loadfn("(function(){");
+      loadfn.append(name);
+      loadfn.append("=require(\"int/");
+      loadfn.append(name);
+      loadfn.append("\");})();");
+      duk_push_string(m_dukctx, loadfn.c_str());
+      if (duk_peval(m_dukctx) != 0)
+        {
+        ESP_LOGE(TAG,"Duktape: %s",duk_safe_to_string(m_dukctx, -1));
+        }
+      duk_pop(m_dukctx);
+      ++itm;
+      }
+    }
 
   // ovmsmain
   FILE* sf = fopen("/store/scripts/ovmsmain.js", "r");
@@ -662,7 +772,7 @@ void OvmsScripts::DukTapeTask()
         case DUKTAPE_register:
           {
           // Register extension function
-          ESP_LOGI(TAG,"Duktape: Post-Registered function %s",msg.body.dt_register.name);
+          ESP_LOGD(TAG,"Duktape: Post-Registered function %s",msg.body.dt_register.name);
           duk_push_c_function(m_dukctx,
             msg.body.dt_register.func,
             msg.body.dt_register.nargs);
@@ -682,22 +792,33 @@ void OvmsScripts::DukTapeTask()
           DukTapeInit();
           }
           break;
+        case DUKTAPE_compact:
+          {
+          // Compact DUKTAPE memory
+          if (m_dukctx != NULL)
+            {
+            ESP_LOGI(TAG,"Duktape: Compacting DukTape memory");
+            duk_gc(m_dukctx, 0);
+            duk_gc(m_dukctx, 0);
+            }
+          }
+          break;
         case DUKTAPE_event:
           {
           // Event
           if (m_dukctx != NULL)
             {
             // Deliver the event to DUKTAPE
-            //duk_get_global_string(m_dukctx, "PubSub");
-            //duk_get_prop_string(m_dukctx, -1, "publish");
-            //duk_dup(m_dukctx, -2);  /* this binding = process */
-            //duk_push_string(m_dukctx, msg.body.dt_event.name);
-            //duk_push_string(m_dukctx, "");
-            //if (duk_pcall_method(m_dukctx, 2) != 0)
-            //  {
-            //  ESP_LOGE(TAG,"Duktape: %s",duk_safe_to_string(m_dukctx, -1));
-            //  }
-            //duk_pop_2(m_dukctx);
+            duk_get_global_string(m_dukctx, "PubSub");
+            duk_get_prop_string(m_dukctx, -1, "publish");
+            duk_dup(m_dukctx, -2);  /* this binding = process */
+            duk_push_string(m_dukctx, msg.body.dt_event.name);
+            duk_push_string(m_dukctx, "");
+            if (duk_pcall_method(m_dukctx, 2) != 0)
+              {
+              ESP_LOGE(TAG,"Duktape: %s",duk_safe_to_string(m_dukctx, -1));
+              }
+            duk_pop_2(m_dukctx);
             }
           }
           break;
@@ -777,6 +898,12 @@ static void script_reload(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, i
 static void script_eval(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv)
   {
   MyScripts.DuktapeEvalNoResult(argv[0], writer);
+  }
+
+static void script_compact(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv)
+  {
+  writer->puts("Compacting javascript memory");
+  MyScripts.DuktapeCompact();
   }
 
 #endif // #ifdef CONFIG_OVMS_SC_JAVASCRIPT_DUKTAPE
@@ -912,6 +1039,17 @@ OvmsScripts::OvmsScripts()
 
 #ifdef CONFIG_OVMS_SC_JAVASCRIPT_DUKTAPE
   ESP_LOGI(TAG, "Using DUKTAPE javascript engine");
+
+  // Register standard modules...
+  extern const char mod_pubsub_js_start[]     asm("_binary_pubsub_js_start");
+  extern const char mod_pubsub_js_end[]       asm("_binary_pubsub_js_end");
+  RegisterDuktapeModule(mod_pubsub_js_start, mod_pubsub_js_end - mod_pubsub_js_start, "PubSub");
+
+  extern const char mod_json_js_start[]     asm("_binary_json_js_start");
+  extern const char mod_json_js_end[]       asm("_binary_json_js_end");
+  RegisterDuktapeModule(mod_json_js_start, mod_json_js_end - mod_json_js_start, "JSON");
+
+  // Start the DukTape task...
   m_duktaskqueue = xQueueCreate(CONFIG_OVMS_SC_JAVASCRIPT_DUKTAPE_QUEUE_SIZE,sizeof(duktape_queue_t));
   xTaskCreatePinnedToCore(DukTapeLaunchTask, "OVMS DukTape", CONFIG_OVMS_SC_JAVASCRIPT_DUKTAPE_STACK, (void*)this, 5, &m_duktaskid, 1);
   AddTaskToMap(m_duktaskid);
@@ -924,6 +1062,7 @@ OvmsScripts::OvmsScripts()
 #ifdef CONFIG_OVMS_SC_JAVASCRIPT_DUKTAPE
   cmd_script->RegisterCommand("reload","Reload javascript framework",script_reload,"",0,0,true);
   cmd_script->RegisterCommand("eval","Eval some javascript code",script_eval,"<code>",1,1,true);
+  cmd_script->RegisterCommand("compact","Compact javascript heap",script_compact,"",0,0,true);
 #endif // #ifdef CONFIG_OVMS_SC_JAVASCRIPT_DUKTAPE
   MyCommandApp.RegisterCommand(".","Run a script",script_run,"<path>",1,1,true);
   }

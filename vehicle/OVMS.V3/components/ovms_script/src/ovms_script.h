@@ -46,6 +46,7 @@ typedef enum
   DUKTAPE_none = 0,             // Do nothing
   DUKTAPE_register,             // Register extension function
   DUKTAPE_reload,               // Reload DukTape engine
+  DUKTAPE_compact,              // Compact DukTape memory
   DUKTAPE_event,                // Event
   DUKTAPE_autoinit,             // Auto init
   DUKTAPE_evalnoresult,         // Execute script text (without result)
@@ -57,9 +58,37 @@ typedef struct
   {
   duk_c_function func;
   duk_idx_t nargs;
-} duktape_registerfunction_t;
+  } duktape_registerfunction_t;
 
 typedef std::map<const char*, duktape_registerfunction_t*, CmpStrOp> DuktapeFunctionMap;
+
+typedef struct
+  {
+  const char* start;
+  size_t length;
+  } duktape_registermodule_t;
+
+typedef std::map<const char*, duktape_registermodule_t*, CmpStrOp> DuktapeModuleMap;
+
+class DuktapeObjectRegistration
+  {
+  public:
+    DuktapeObjectRegistration(const char* name);
+    ~DuktapeObjectRegistration();
+
+  public:
+    const char* GetName();
+    void RegisterDuktapeFunction(duk_c_function func, duk_idx_t nargs, const char* name);
+
+  public:
+    void RegisterWithDuktape(duk_context* ctx);
+
+  protected:
+    const char* m_name;
+    DuktapeFunctionMap m_fnmap;
+  };
+
+typedef std::map<const char*, DuktapeObjectRegistration*, CmpStrOp> DuktapeObjectMap;
 
 typedef struct
   {
@@ -111,6 +140,9 @@ class OvmsScripts
 #ifdef CONFIG_OVMS_SC_JAVASCRIPT_DUKTAPE
   public:
     void RegisterDuktapeFunction(duk_c_function func, duk_idx_t nargs, const char* name);
+    void RegisterDuktapeModule(const char* start, size_t length, const char* name);
+    duktape_registermodule_t* FindDuktapeModule(const char* name);
+    void RegisterDuktapeObject(DuktapeObjectRegistration* ob);
     void AutoInitDuktape();
 
   protected:
@@ -122,6 +154,7 @@ class OvmsScripts
     float DuktapeEvalFloatResult(const char* text, OvmsWriter* writer=NULL);
     int   DuktapeEvalIntResult(const char* text, OvmsWriter* writer=NULL);
     void  DuktapeReload();
+    void  DuktapeCompact();
 
   public:
     void DukTapeInit();
@@ -132,6 +165,8 @@ class OvmsScripts
     TaskHandle_t m_duktaskid;
     QueueHandle_t m_duktaskqueue;
     DuktapeFunctionMap m_fnmap;
+    DuktapeModuleMap m_modmap;
+    DuktapeObjectMap m_obmap;
 #endif // #ifdef CONFIG_OVMS_SC_JAVASCRIPT_DUKTAPE
   };
 
