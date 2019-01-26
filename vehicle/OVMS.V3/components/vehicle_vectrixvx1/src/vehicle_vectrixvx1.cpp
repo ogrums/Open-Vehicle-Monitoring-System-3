@@ -59,15 +59,18 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
   BmsSetCellLimitsTemperature(-5,35);
   BmsSetCellDefaultThresholdsVoltage(0.020, 0.030);
   BmsSetCellDefaultThresholdsTemperature(2.0, 3.0);
-
+  #ifdef CONFIG_OVMS_COMP_WEBSERVER
   MyWebServer.RegisterPage("/bms/cellmon", "BMS cell monitor", OvmsWebServer::HandleBmsCellMonitor, PageMenu_Vehicle, PageAuth_Cookie);
+  #endif
   }
 
 OvmsVehicleVectrixVX1::~OvmsVehicleVectrixVX1()
   {
   ESP_LOGI(TAG, "Shutdown Vectrix VX1 vehicle module");
   MyCommandApp.UnregisterCommand("xvv");
+  #ifdef CONFIG_OVMS_COMP_WEBSERVER
   MyWebServer.DeregisterPage("/bms/cellmon");
+  #endif
   }
 
 void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
