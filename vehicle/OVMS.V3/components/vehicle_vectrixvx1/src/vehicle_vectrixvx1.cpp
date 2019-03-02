@@ -55,9 +55,9 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
 
   BmsSetCellArrangementVoltage(40, 10);
   BmsSetCellArrangementTemperature(4, 1);
-  BmsSetCellLimitsVoltage(2.6,3.65);
+  BmsSetCellLimitsVoltage(2.6,3.60);
   BmsSetCellLimitsTemperature(-5,35);
-  BmsSetCellDefaultThresholdsVoltage(0.020, 0.030);
+  BmsSetCellDefaultThresholdsVoltage(0.030, 0.040);
   BmsSetCellDefaultThresholdsTemperature(2.0, 3.0);
   #ifdef CONFIG_OVMS_COMP_WEBSERVER
   MyWebServer.RegisterPage("/bms/cellmon", "BMS cell monitor", OvmsWebServer::HandleBmsCellMonitor, PageMenu_Vehicle, PageAuth_Cookie);
@@ -79,7 +79,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 
   switch (p_frame->MsgID)
     {
-    case 0x00FEE04C:
+    case 0x00fee04C:
 		{
 		// Estimated range:
 		StandardMetrics.ms_v_bat_range_est->SetValue((float) ((d[7] << 24) + (d[6] << 16) + (d[5] << 8) + d[4]) * 0.5, Kilometers);
@@ -96,7 +96,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 		break;
 		}
 
-	  case 0x00FEF106:
+	  case 0x00fef106:
 		{
 		// Charging Mode
 		// Mesured Motor Controller voltage used
@@ -105,7 +105,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 		}
 
 
-	  case 0x00FF0505:
+	  case 0x00ff0505:
 		{
 		// Regen:
 		//StdMetrics.ms_v_pos_speed->SetValue((double) ((d[2] << 8) + d[1]) * 0.00390625, Kph); // kph
@@ -129,7 +129,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 
     case 0x00fef105: // MC voltage and speed
     {
-    StandardMetrics.ms_v_pos_speed->SetValue((float)(((((int)d[2]&0xff)<<8) + ((int)d[1]&0xff)*0.00390625)));
+    StandardMetrics.ms_v_pos_speed->SetValue((float)(((((int)d[2]&0xff)<<8) + ((int)d[1]&0xff))*0.00390625));
     // Don't update battery voltage too quickly (as it jumps around like crazy)
     if (StandardMetrics.ms_v_bat_voltage->Age() > 10)
       StandardMetrics.ms_v_bat_voltage->SetValue((int)d[6]);
@@ -165,7 +165,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
       }
 
 
-    case 0x00F00300: // Gear selector
+    case 0x00f00300: // Gear selector
       {
       switch ((d[1]&0x70)>>4)
         {
@@ -174,14 +174,12 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
           StandardMetrics.ms_v_env_on->SetValue(false);
           StandardMetrics.ms_v_env_awake->SetValue(false);
           StandardMetrics.ms_v_env_handbrake->SetValue(true);
-          StandardMetrics.ms_v_env_charging12v->SetValue(false);
           break;
         case 2: // Reverse
           StandardMetrics.ms_v_env_gear->SetValue(-1);
           StandardMetrics.ms_v_env_on->SetValue(true);
           StandardMetrics.ms_v_env_awake->SetValue(true);
           StandardMetrics.ms_v_env_handbrake->SetValue(false);
-          StandardMetrics.ms_v_env_charging12v->SetValue(true);
           break;
         default:
           break;
@@ -190,19 +188,20 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
       }
 
 
-    case 0x00FEE24C: // Charging related
+    case 0x00fee24c: // Charging related
       {
       //m_charge_w = uint8_t(d[7]&0x1F);
       break;
       }
 
-    case 0x00FEF14C: // Charging Status
+    case 0x00fef14c: // Charging Status
       {
       float charge_v = (float)(uint16_t(d[1]<<8) + d[0])/256;
       if ((charge_v != 0)&&(m_charge_w != 0))
         { // Charging
         //StandardMetrics.ms_v_charge_current->SetValue((unsigned int)(m_charge_w/charge_v));
         //StandardMetrics.ms_v_charge_voltage->SetValue((unsigned int)charge_v);
+        StandardMetrics.ms_v_charge_current->SetValue((float)(((((int)d[2]&0xff)<<8) + ((int)d[1]&0xff))*0.000390625));
         StandardMetrics.ms_v_charge_pilot->SetValue(true);
         StandardMetrics.ms_v_charge_inprogress->SetValue(true);
         StandardMetrics.ms_v_charge_mode->SetValue("standard");
@@ -225,24 +224,24 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
       }
 
 
-    case 0x00FEF74C: //Charger status
+    case 0x00fef74c: //Charger status
 		  {
 		  //m_v_preheat_timer1_enabled->SetValue( d[0] & 0x1 );
 		  //m_v_preheat_timer2_enabled->SetValue( d[3] & 0x1 );
-		  StandardMetrics.ms_v_charge_current->SetValue((float) ((d[4] * 0.1) , Amps)); // Charger Output Current
-		  StandardMetrics.ms_v_charge_voltage->SetValue((float) ((d[7] > 0), Volts)); // Charger Output Volts
+		  StandardMetrics.ms_v_charge_current->SetValue((float) (((d[4] & 0xFF) * 0.1) , Amps)); // Charger Output Current
+		  StandardMetrics.ms_v_charge_voltage->SetValue((float) (((d[7] & 0xFF) > 0), Volts)); // Charger Output Volts
 		break;
 		  }
 
 
-    case 0x00FEFC4C: // SOC
+    case 0x00fefc4c: // SOC
       {
-      StandardMetrics.ms_v_bat_soc->SetValue( ((float)(((int)d[0]&0xFF )* 100) / 256) );
+      StandardMetrics.ms_v_bat_soc->SetValue( ((float)(((int)d[0] & 0xFF )* 100) / 256) );
       break;
       }
 
 
-    case 0x00FEE005: // Odometer (0x562 is battery, so this is motor or car?)
+    case 0x00fee017: // Odometer from Instrument Cluster
       {
       StandardMetrics.ms_v_pos_odometer->SetValue((float)(((uint32_t)d[4]<<24)
                                                 + ((uint32_t)d[5]<<16)
@@ -252,7 +251,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
       }
 
 
-    case 0x18FEE617:
+    case 0x18fee617:
       {
         // Clock:
         //if (d[1] > 0 || d[2] > 0 || d[3] > 0)
