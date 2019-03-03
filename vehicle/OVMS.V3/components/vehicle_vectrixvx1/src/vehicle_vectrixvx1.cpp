@@ -231,9 +231,14 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 		  {
 		  //m_v_preheat_timer1_enabled->SetValue( d[0] & 0x1 );
 		  //m_v_preheat_timer2_enabled->SetValue( d[3] & 0x1 );
+      if (((int)d[0]&0x0A) != 0) {
+        StandardMetrics.ms_v_charge_inprogress->SetValue(true);
+      } else {
+        StandardMetrics.ms_v_charge_inprogress->SetValue(false);
+      }
 		  StandardMetrics.ms_v_charge_current->SetValue((float) (((d[4] & 0xFF) * 0.1) , Amps)); // Charger Output Current
 		  StandardMetrics.ms_v_charge_voltage->SetValue((float) (((d[7] & 0xFF) > 0), Volts)); // Charger Output Volts
-		break;
+		  break;
 		  }
 
 
@@ -243,6 +248,11 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
       break;
       }
 
+    case 0x00ff0a4c: // Charger Status
+      {
+      StandardMetrics.ms_v_charge_time->SetValue((int)(((uint16_t)d[4] <<8) + ((uint16_t)d[5])), Seconds);
+      break;
+      }
 
     case 0x00fee017: // Odometer from Instrument Cluster
       {
