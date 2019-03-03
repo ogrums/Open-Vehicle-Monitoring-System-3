@@ -45,7 +45,7 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
 
   memset(m_vin,0,sizeof(m_vin));
   memset(m_type,0,sizeof(m_type));
-  m_charge_w = 0;
+  //m_charge_w = 0;
 
   StandardMetrics.ms_v_bat_12v_voltage->SetValue(12);
   StandardMetrics.ms_v_bat_12v_voltage_alert->SetValue(false);
@@ -60,8 +60,9 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
   BmsSetCellDefaultThresholdsVoltage(0.030, 0.040);
   BmsSetCellDefaultThresholdsTemperature(2.0, 3.0);
   #ifdef CONFIG_OVMS_COMP_WEBSERVER
-  MyWebServer.RegisterPage("/bms/cellmon", "BMS cell monitor", OvmsWebServer::HandleBmsCellMonitor, PageMenu_Vehicle, PageAuth_Cookie);
+    WebInit();
   #endif
+
   }
 
 OvmsVehicleVectrixVX1::~OvmsVehicleVectrixVX1()
@@ -69,7 +70,7 @@ OvmsVehicleVectrixVX1::~OvmsVehicleVectrixVX1()
   ESP_LOGI(TAG, "Shutdown Vectrix VX1 vehicle module");
   MyCommandApp.UnregisterCommand("xvv");
   #ifdef CONFIG_OVMS_COMP_WEBSERVER
-  MyWebServer.DeregisterPage("/bms/cellmon");
+    WebDeInit();
   #endif
   }
 
@@ -132,9 +133,11 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
     StandardMetrics.ms_v_pos_speed->SetValue((float)(((((int)d[2]&0xff)<<8) + ((int)d[1]&0xff))*0.00390625));
     // Don't update battery voltage too quickly (as it jumps around like crazy)
     if (StandardMetrics.ms_v_bat_voltage->Age() > 10)
+      {
       StandardMetrics.ms_v_bat_voltage->SetValue((int)d[6]);
       StandardMetrics.ms_v_bat_current->SetValue((float)((int)d[7]*0.488));
     //StandardMetrics.ms_v_bat_temp->SetValue((float)((((int)d[7]&0x07)<<8)+d[6])/10);
+      }
 		break;
     }
 
@@ -172,13 +175,13 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
         case 1: // Park
           StandardMetrics.ms_v_env_gear->SetValue(0);
           StandardMetrics.ms_v_env_on->SetValue(false);
-          StandardMetrics.ms_v_env_awake->SetValue(false);
+          //StandardMetrics.ms_v_env_awake->SetValue(false);
           StandardMetrics.ms_v_env_handbrake->SetValue(true);
           break;
         case 2: // Reverse
           StandardMetrics.ms_v_env_gear->SetValue(-1);
           StandardMetrics.ms_v_env_on->SetValue(true);
-          StandardMetrics.ms_v_env_awake->SetValue(true);
+          //StandardMetrics.ms_v_env_awake->SetValue(true);
           StandardMetrics.ms_v_env_handbrake->SetValue(false);
           break;
         default:
@@ -190,7 +193,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 
     case 0x00fee24c: // Charging related
       {
-      //m_charge_w = uint8_t(d[7]&0x1F);
+      // to-do
       break;
       }
 

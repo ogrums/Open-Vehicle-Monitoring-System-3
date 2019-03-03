@@ -34,6 +34,8 @@
 #include "vehicle.h"
 #include "ovms_metrics.h"
 
+#include "vv_types.h"
+
 using namespace std;
 
 class OvmsVehicleVectrixVX1: public OvmsVehicle
@@ -44,6 +46,20 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
 
   public:
     void IncomingFrameCan1(CAN_frame_t* p_frame);
+
+    // --------------------------------------------------------------------------
+    // Webserver subsystem
+    //  - implementation: nl_web.(h,cpp)
+    //
+
+  public:
+    void WebInit();
+    void WebDeInit();
+    //static void WebCfgFeatures(PageEntry_t& p, PageContext_t& c);
+    //static void WebCfgBattery(PageEntry_t& p, PageContext_t& c);
+
+  public:
+    void GetDashboardConfig(DashboardConfig& cfg);
 
   protected:
     virtual void Notify12vCritical();
