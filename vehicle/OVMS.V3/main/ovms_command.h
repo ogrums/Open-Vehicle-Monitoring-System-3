@@ -65,7 +65,10 @@ class OvmsWriter
     virtual int puts(const char* s) = 0;
     virtual int printf(const char* fmt, ...) = 0;
     virtual ssize_t write(const void *buf, size_t nbyte) = 0;
-    virtual char ** GetCompletion(OvmsCommandMap& children, const char* token) = 0;
+    virtual char** SetCompletion(int index, const char* token) { return NULL; }
+    virtual char** GetCompletions() { return NULL; }
+    virtual void SetArgv(const char* const* argv) { return; }
+    virtual const char* const* GetArgv() { return NULL; }
     virtual void Log(LogBuffers* message) = 0;
     virtual void Exit();
     virtual bool IsInteractive() { return true; }
@@ -89,6 +92,46 @@ class OvmsWriter
     bool m_monitoring;
   };
 
+template <typename T>
+class NameMap : public std::map<std::string, T>
+  {
+  public:
+    T FindUniquePrefix(std::string& key)
+      {
+      size_t len = key.length();
+      T found = NULL;
+      for (typename NameMap<T>::iterator it = NameMap<T>::begin(); it != NameMap<T>::end(); ++it)
+	{
+	if (it->first.compare(0, len, key) == 0)
+	  {
+	  if (len == it->first.length())
+	    return it->second;
+	  if (found)
+	    return NULL;
+	  else
+	    found = it->second;
+	  }
+	}
+      return found;
+      }
+
+    char** GetCompletion(OvmsWriter* writer, const char* token)
+      {
+      unsigned int index = 0;
+      char** tokens = writer->SetCompletion(index, NULL);
+      if (token)
+        {
+        size_t len = strlen(token);
+        for (typename NameMap<T>::iterator it = NameMap<T>::begin(); it != NameMap<T>::end(); ++it)
+          {
+          if (it->first.compare(0, len, token) == 0)
+            writer->SetCompletion(index++, it->first.c_str());
+          }
+        }
+      return tokens;
+      }
+  };
+
 struct CompareCharPtr
   {
   bool operator()(const char* a, const char* b);
@@ -99,6 +142,7 @@ class OvmsCommandMap : public std::map<const char*, OvmsCommand*, CompareCharPtr
   public:
     OvmsCommand* FindUniquePrefix(const char* key);
     OvmsCommand* FindCommand(const char* key);
+    char** GetCompletion(OvmsWriter* writer, const char* token);
   };
 
 class OvmsCommand : public ExternalRamAllocated
@@ -106,12 +150,14 @@ class OvmsCommand : public ExternalRamAllocated
   public:
     OvmsCommand();
     OvmsCommand(const char* name, const char* title, void (*execute)(int, OvmsWriter*, OvmsCommand*, int, const char* const*),
-                const char *usage, int min, int max, bool secure = false);
+                const char *usage, int min, int max, bool secure = false,
+                int (*validate)(OvmsWriter*, OvmsCommand*, int, const char* const*, bool) = NULL);
     virtual ~OvmsCommand();
 
   public:
     OvmsCommand* RegisterCommand(const char* name, const char* title, void (*execute)(int, OvmsWriter*, OvmsCommand*, int, const char* const*),
-                                 const char *usage = "", int min = 0, int max = INT_MAX, bool secure = false);
+                                 const char *usage = "", int min = 0, int max = INT_MAX, bool secure = false,
+                                 int (*validate)(OvmsWriter*, OvmsCommand*, int, const char* const*, bool) = NULL);
     bool UnregisterCommand(const char* name = NULL);
     const char* GetName();
     const char* GetTitle();
@@ -123,14 +169,15 @@ class OvmsCommand : public ExternalRamAllocated
     bool IsSecure() { return m_secure; }
 
   private:
-    void ExpandUsage(std::string usage, OvmsWriter* writer);
+    void PutUsage(OvmsWriter* writer);
+    void ExpandUsage(const char* templ, OvmsWriter* writer, std::string& result);
 
   protected:
     const char* m_name;
     const char* m_title;
     void (*m_execute)(int, OvmsWriter*, OvmsCommand*, int, const char* const*);
+    int (*m_validate)(OvmsWriter*, OvmsCommand*, int, const char* const*, bool);
     const char* m_usage_template;
-    std::string m_usage;
     int m_min;
     int m_max;
     bool m_secure;
