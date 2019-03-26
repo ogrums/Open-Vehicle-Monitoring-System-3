@@ -216,7 +216,11 @@ void OvmsCommand::PutUsage(OvmsWriter* writer)
       size_t len = strlen(parent->m_usage_template);
       char* dollar = index(parent->m_usage_template, '$');
       if (dollar)
+        {
         len = dollar - parent->m_usage_template;
+        if (len > 0 && *(dollar-1) == '[')
+          --len;
+        }
       else
         result.insert(pos, " ");
       result.insert(pos, parent->m_usage_template, len);
@@ -359,7 +363,7 @@ char ** OvmsCommand::Complete(OvmsWriter* writer, int argc, const char * const *
   if (m_validate)
     {
     int used = -1;
-    if (argc >= m_min)
+    if (argc >= 0)
       used = m_validate(writer, this, argc, argv, true);
     if (used < 0 || used == argc)
       return writer->GetCompletions();
@@ -422,6 +426,14 @@ void OvmsCommand::Execute(int verbosity, OvmsWriter* writer, int argc, const cha
     //puts("Looking for a matching command");
     if (argc <= 0)
       {
+      if (m_execute)
+        {
+        if ((!m_secure)||(m_secure && writer->m_issecure))
+          m_execute(verbosity,writer,this,argc,argv);
+        else
+          writer->puts("Error: Secure command requires 'enable' mode");
+        return;
+        }
       writer->puts("Subcommand required");
       PutUsage(writer);
       return;
