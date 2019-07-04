@@ -4,14 +4,14 @@ Open Vehicles Monitoring System
 
 .. toctree::
    :maxdepth: 1
-   :caption: Available Documents:
+   :caption: User Guides:
 
    introduction
    userguide/index
 
-Indices and tables
-==================
+.. toctree::
+   :maxdepth: 1
+   :glob:
+   :caption: Vehicle Specific Guides:
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   components/vehicle_*/docs/index*
