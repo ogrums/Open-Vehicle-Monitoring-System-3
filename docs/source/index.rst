@@ -11,6 +11,12 @@ Open Vehicles Monitoring System
 
 .. toctree::
    :maxdepth: 1
+   :caption: Developer Guides:
+
+   crtd/index
+
+.. toctree::
+   :maxdepth: 1
    :glob:
    :caption: Vehicle Specific Guides:
 
