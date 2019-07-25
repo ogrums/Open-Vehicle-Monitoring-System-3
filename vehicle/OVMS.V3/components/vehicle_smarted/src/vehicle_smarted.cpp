@@ -389,9 +389,9 @@ void OvmsVehicleSmartED::IncomingFrameCan1(CAN_frame_t* p_frame) {
       0x518 01 4e 00 00 [f8 7f] c8 b4 // Charge duration? 
       */
       if (m_soc_rsoc) {
-        StandardMetrics.ms_v_bat_soh->SetValue((float) (d[7]/2));
+        StandardMetrics.ms_v_bat_soh->SetValue((float) (d[7]/2.0));
       } else {
-        StandardMetrics.ms_v_bat_soc->SetValue((float) (d[7]/2));
+        StandardMetrics.ms_v_bat_soc->SetValue((float) (d[7]/2.0));
       }
       StandardMetrics.ms_v_charge_climit->SetValue(d[1]/2);
       //HandleChargingStatus(d[1]!=0);
@@ -405,11 +405,13 @@ void OvmsVehicleSmartED::IncomingFrameCan1(CAN_frame_t* p_frame) {
        = 340 (in HEX)
        = 832 (in base10) and now by ten
        = 83,2% */
+      float rsoc = ((d[4] & 0x03) * 256 + d[5]) / 10.0;
       if (m_soc_rsoc) {
-        StandardMetrics.ms_v_bat_soc->SetValue(((float) ((d[4] & 0x03) * 256 + d[5])) / 10, Percentage);
+        StandardMetrics.ms_v_bat_soc->SetValue(rsoc, Percentage);
       } else {
-        StandardMetrics.ms_v_bat_soh->SetValue(((float) ((d[4] & 0x03) * 256 + d[5])) / 10, Percentage);
+        StandardMetrics.ms_v_bat_soh->SetValue(rsoc, Percentage);
       }
+      StandardMetrics.ms_v_bat_cac->SetValue((DEFAULT_BATTERY_AMPHOURS * rsoc) / 100, AmpHours);
       break;
     }
     case 0x508: //HV ampere and charging yes/no
@@ -430,7 +432,7 @@ void OvmsVehicleSmartED::IncomingFrameCan1(CAN_frame_t* p_frame) {
       float HVA = StandardMetrics.ms_v_bat_current->AsFloat();
       HV = ((float) d[6] * 256 + (float) d[7]);
       HV = HV / 10.0;
-      float HVP = (HV * HVA) / 1000;
+      float HVP = (HV * HVA) / 1000.0;
       StandardMetrics.ms_v_bat_voltage->SetValue(HV, Volts);
       StandardMetrics.ms_v_bat_power->SetValue(HVP);
       break;
@@ -484,7 +486,7 @@ void OvmsVehicleSmartED::IncomingFrameCan1(CAN_frame_t* p_frame) {
     case 0x200: // hand brake and speed
     {
       StandardMetrics.ms_v_env_handbrake->SetValue(d[0]);
-      float velocity = (d[2] * 256 + d[3]) / 18;
+      float velocity = (d[2] * 256 + d[3]) / 18.0;
       StandardMetrics.ms_v_pos_speed->SetValue(velocity, Kph);
       CalculateAcceleration();
       break;
@@ -497,9 +499,9 @@ void OvmsVehicleSmartED::IncomingFrameCan1(CAN_frame_t* p_frame) {
     {
       float soc = StandardMetrics.ms_v_bat_soc->AsFloat();
       if(soc > 0) {
-          float smart_range_ideal = (m_range_ideal * soc) / 100;
+          float smart_range_ideal = (m_range_ideal * soc) / 100.0;
           StandardMetrics.ms_v_bat_range_ideal->SetValue(smart_range_ideal); // ToDo
-          StandardMetrics.ms_v_bat_range_full->SetValue((float) (d[7] / soc) * 100, Kilometers); // ToDo
+          StandardMetrics.ms_v_bat_range_full->SetValue((float) (d[7] / soc) * 100.0, Kilometers); // ToDo
       }
       StandardMetrics.ms_v_bat_range_est->SetValue(d[7], Kilometers);
       StandardMetrics.ms_v_env_throttle->SetValue(d[5]);
@@ -551,8 +553,8 @@ void OvmsVehicleSmartED::IncomingFrameCan1(CAN_frame_t* p_frame) {
     }
     case 0x3CE: //Consumption from start and from reset
     {
-      float energy_start = (d[0] * 256 + d[1]) / 100;
-      float energy_reset = (d[2] * 256 + d[3]) / 100;
+      float energy_start = (d[0] * 256 + d[1]) / 100.0;
+      float energy_reset = (d[2] * 256 + d[3]) / 100.0;
       
       mt_bat_energy_used_start->SetValue(energy_start);
       mt_bat_energy_used_reset->SetValue(energy_reset);
@@ -697,7 +699,9 @@ OvmsVehicle::vehicle_command_t OvmsVehicleSmartED::CommandSetChargeCurrent(uint1
      So calculate an offset 0xA4 = d164: e.g. 12A = 0xA4 - 0x7C = 0x28 = d40 -> subtract from the maximum (0xA4 = 32A)
       then divide by two to get the value for 20A (with 0.5A resolution).
     */
-
+    if(!m_enable_write)
+      return Fail;
+    
     CAN_frame_t frame;
     memset(&frame, 0, sizeof(frame));
 
@@ -726,7 +730,9 @@ OvmsVehicle::vehicle_command_t OvmsVehicleSmartED::CommandWakeup() {
     Both patterns should comply with the Bosch CAN bus spec. for waking up a sleeping bus with recessive bits.
     0x423 01 00 00 00 will wake up the CAN bus but not the right on.
     */
-
+    if(!m_enable_write)
+      return Fail;
+    
     ESP_LOGI(TAG, "Send Wakeup Command");
     
     CAN_frame_t frame;
@@ -757,12 +763,24 @@ OvmsVehicle::vehicle_command_t OvmsVehicleSmartED::CommandSetChargeTimer(bool ti
      0x512 00 00 12 1E 00 00 00 00
      if one sets e.g. the time at 18:30. If you now mask byte 3 (0x12) with 0x40 (and set the second bit to high there), the A / C function is also activated.
     */
-    if(timerstart == 0) { 
-        return Fail;
-    }
+    if(!m_enable_write)
+      return Fail;
+    
     if(!StandardMetrics.ms_v_env_awake->AsBool()) {
-        return Fail;
+      if (!MyConfig.IsDefined("password","pin")) return Fail;
+      
+      std::string vpin = MyConfig.GetParamValue("password","pin");
+      CommandUnlock(vpin.c_str());
+      vTaskDelay(600 / portTICK_PERIOD_MS);
+      CommandLock(vpin.c_str());
+      vTaskDelay(600 / portTICK_PERIOD_MS);
+      if(!StandardMetrics.ms_v_env_awake->AsBool()) return Fail;
     }
+    if(timerstart == 0) { 
+      timerstart = mt_vehicle_time->AsInt();
+      if(timerstart == 0) return Fail;
+    }
+    
     int t = timerstart + 600; // mt_vehicle_time + 10 min
     //int days = (t / 86400);
     //t = t - (days * 86400);
@@ -794,6 +812,11 @@ OvmsVehicle::vehicle_command_t OvmsVehicleSmartED::CommandSetChargeTimer(bool ti
     frame.data.u8[6] = 0x00;
     frame.data.u8[7] = 0x00;
     m_can1->Write(&frame);
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    m_can1->Write(&frame);
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    m_can1->Write(&frame);
+    
     return Success;
 }
 
@@ -944,7 +967,7 @@ OvmsVehicle::vehicle_command_t OvmsVehicleSmartED::CommandStat(int verbosity, Ov
   if (*cac != '-')
     writer->printf("CAC: %s\n", cac);
 
-  const char* soh = StdMetrics.ms_v_bat_soh->AsUnitString("-", Native, 0).c_str();
+  const char* soh = StdMetrics.ms_v_bat_soh->AsUnitString("-", Native, 1).c_str();
   if (*soh != '-')
     writer->printf("SOH: %s\n", soh);
 
@@ -958,6 +981,5 @@ class OvmsVehicleSmartEDInit {
 
 OvmsVehicleSmartEDInit::OvmsVehicleSmartEDInit() {
     ESP_LOGI(TAG, "Registering Vehicle: SMART ED (9000)");
-    MyVehicleFactory.RegisterVehicle<OvmsVehicleSmartED>("SE", "Smart ED");
+    MyVehicleFactory.RegisterVehicle<OvmsVehicleSmartED>("SE", "Smart ED 3.Gen");
 }
-
