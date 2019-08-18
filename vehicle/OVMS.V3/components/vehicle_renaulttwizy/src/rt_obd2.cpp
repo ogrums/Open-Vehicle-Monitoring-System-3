@@ -48,12 +48,14 @@ using namespace std;
 #define CLUSTER_RXID              0x763
 #define CLUSTER_PID_VIN           0x81
 #define CLUSTER_PID_DTC           0x13
+#define SESSION_EXTDIAG           0xC0
 
 const OvmsVehicle::poll_pid_t twizy_poll_default[] = {
   // Note: poller ticker cycles at 3600 seconds = max period
   // { txid, rxid, type, pid, { period_off, period_drive, period_charge } }
-  { CLUSTER_TXID, CLUSTER_RXID, VEHICLE_POLL_TYPE_OBDIIGROUP, CLUSTER_PID_VIN, { 0, 3600, 3600 } },
-  { CLUSTER_TXID, CLUSTER_RXID, VEHICLE_POLL_TYPE_OBDIIGROUP, CLUSTER_PID_DTC, { 0, 10, 60 } },
+  { CLUSTER_TXID, CLUSTER_RXID,  VEHICLE_POLL_TYPE_OBDIISESSION, SESSION_EXTDIAG,  { 0,   10,   60 } },
+  { CLUSTER_TXID, CLUSTER_RXID,  VEHICLE_POLL_TYPE_OBDIIGROUP,   CLUSTER_PID_VIN,  { 0, 3600, 3600 } },
+  { CLUSTER_TXID, CLUSTER_RXID,  VEHICLE_POLL_TYPE_OBDIIGROUP,   CLUSTER_PID_DTC,  { 0,   10,   60 } },
   { 0, 0, 0, 0, { 0, 0, 0 } }
 };
 
@@ -69,8 +71,7 @@ void OvmsVehicleRenaultTwizy::ObdInit()
   cmd = cmd_xrt->RegisterCommand("dtc", "Show DTC report / clear DTC", shell_obd_showdtc);
   cmd->RegisterCommand("show", "Show DTC report", shell_obd_showdtc);
   cmd->RegisterCommand("clear", "Clear stored DTC in car", shell_obd_cleardtc,
-    "Att: this clears the car DTC store if the car is turned on.\n"
-    "Invoke with car turned off to just clear the OVMS DTC alert buffer.");
+    "Att: this clears the car DTC store (car must be turned on).");
   cmd->RegisterCommand("reset", "Reset OVMS DTC statistics", shell_obd_resetdtc,
     "Resets internal DTC buffer and presence counters.\n"
     "No change is done on the car side.");
@@ -99,7 +100,9 @@ void OvmsVehicleRenaultTwizy::ObdTicker1()
 {
   int new_state;
   
-  if (twizy_flags.Charging)
+  if (!twizy_flags.EnableWrite)
+    new_state = 0;
+  else if (twizy_flags.Charging)
     new_state = 2;
   else if (twizy_flags.CarAwake)
     new_state = 1;
@@ -132,11 +135,13 @@ void OvmsVehicleRenaultTwizy::IncomingPollReply(
   switch (pid) {
 
     // VIN:
-    case CLUSTER_PID_VIN:
+    case CLUSTER_PID_VIN: {
       // payload = 17 chars VIN + 2 bytes checksum
-      ESP_LOGD(TAG, "OBD2: got VIN='%s'", rxbuf.substr(0,17).c_str());
-      *StdMetrics.ms_v_vin = rxbuf.substr(0,17);
+      string vin = rxbuf.substr(0,17);
+      ESP_LOGD(TAG, "OBD2: got VIN='%s'", vin.c_str());
+      if (vin[0]) *StdMetrics.ms_v_vin = vin;
       break;
+    }
 
     // DTC:
     case CLUSTER_PID_DTC:
@@ -147,15 +152,20 @@ void OvmsVehicleRenaultTwizy::IncomingPollReply(
       // alert processing done by ticker
       break;
 
+    // Ignored:
+    case SESSION_EXTDIAG:
+      ESP_LOGV(TAG, "OBD2: ignored reply [%02x %02x]", type, pid);
+      break;
+    
     // Unknown: output
     default: {
       char *buf = NULL;
       size_t rlen = rxbuf.size(), offset = 0;
-      while (rlen) {
+      do {
         rlen = FormatHexDump(&buf, rxbuf.data() + offset, rlen, 16);
         offset += 16;
-        ESP_LOGW(TAG, "OBD2: unhandled reply: %s", buf);
-      }
+        ESP_LOGW(TAG, "OBD2: unhandled reply [%02x %02x]: %s", type, pid, buf ? buf : "-");
+      } while (rlen);
       if (buf)
         free(buf);
       break;
@@ -283,9 +293,13 @@ void OvmsVehicleRenaultTwizy::ObdTicker10()
           dtcbuf.append(new_dtc ? "NEW " : "UPD ");
           FormatDTC(dtcbuf, i, n);
           ESP_LOGW(TAG, "OBD2 Cluster DTC %s", dtcbuf.c_str());
+          
+          // …signal:
+          MyEvents.SignalEvent(n.FailPresent ? "vehicle.dtc.present" : "vehicle.dtc.stored",
+                               (void*)dtcbuf.data(), dtcbuf.size());
 
           // …add to alert:
-          if (!twizy_cluster_dtc_inhibit_alert || new_present) {
+          if (new_present || (n!=e && !twizy_cluster_dtc_inhibit_alert)) {
             alertbuf.append(dtcbuf);
             alertbuf.append("\n");
           }
@@ -301,7 +315,7 @@ void OvmsVehicleRenaultTwizy::ObdTicker10()
     
     if (!alertbuf.empty())
     {
-      MyNotify.NotifyStringf("alert", "vehicle.status.dtc", "DTC update (%d stored, %d present):\n%s",
+      MyNotify.NotifyStringf("alert", "vehicle.dtc", "DTC update (%d stored, %d present):\n%s",
                              cnt_stored, cnt_present, alertbuf.c_str());
     }
     
@@ -343,12 +357,16 @@ void OvmsVehicleRenaultTwizy::shell_obd_cleardtc(int verbosity, OvmsWriter* writ
   if (!twizy)
     return;
 
-  twizy->ResetDTCStats();
-
-  if (!twizy->twizy_flags.CarAwake) {
-    writer->puts("NOTE: Car is offline, only OVMS DTC buffer has been cleared.");
+  if (!twizy->twizy_flags.EnableWrite) {
+    writer->puts("ERROR: CAN bus write access disabled.");
     return;
   }
+  else if (!twizy->twizy_flags.CarAwake) {
+    writer->puts("ERROR: Car is offline.");
+    return;
+  }
+
+  twizy->ResetDTCStats();
 
   CAN_frame_t txframe = {};
   txframe.FIR.B.FF = CAN_frame_std;
