@@ -1,6 +1,24 @@
 Open Vehicle Monitor System v3 - Change log
 
 ????-??-?? ???  ???????  OTA release
+- Network: avoid using wifi networks with too bad signal quality
+  New configs:
+    [network] wifi.sq.good  [dBm], default -87 (network usable if SQ >= this)
+    [network] wifi.sq.bad   [dBm], default -89 (disconnect if SQ <= this)
+  New events:
+    network.wifi.sta.good
+    network.wifi.sta.bad
+- Network: provide dedicated metrics for modem & wifi channel states
+  New metrics:
+    m.net.mdm.network
+    m.net.mdm.sq
+    m.net.wifi.network
+    m.net.wifi.sq
+- Regen brake signal: added power base range, power smoothing & foot brake config
+  New configs:
+    vehicle [batpwr.smoothing] = 2.0    Battery power smoothing factor (samples, 0 = none)
+    vehicle [brakelight.basepwr] = 0    Base power range around zero [kW]
+    vehicle [brakelight.ignftbrk] = no  Ignore foot brake
 - Twizy: added tuning option for SEVCON_T45 + Gearbox_T80 hybrid
   Configuration: xrt [type] = "SC45GB80"
 - Twizy: OBD2 VIN reading & cluster DTC monitoring
