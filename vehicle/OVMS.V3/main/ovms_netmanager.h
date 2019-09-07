@@ -89,6 +89,8 @@ class OvmsNetManager
 
   public:
     void WifiStaGotIP(std::string event, void* data);
+    void WifiStaLostIP(std::string event, void* data);
+    void WifiStaConnected(std::string event, void* data);
     void WifiStaStop(std::string event, void* data);
     void WifiStaGood(std::string event, void* data);
     void WifiStaBad(std::string event, void* data);
@@ -101,6 +103,7 @@ class OvmsNetManager
     void InterfaceUp(std::string event, void* data);
     void ConfigChanged(std::string event, void* data);
     void EventSystemShuttingDown(std::string event, void* data);
+    void RestartNetwork();
 
   protected:
     void WifiConnect();
