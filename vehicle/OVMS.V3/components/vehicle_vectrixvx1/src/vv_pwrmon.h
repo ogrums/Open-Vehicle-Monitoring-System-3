@@ -31,7 +31,7 @@
 
 using namespace std;
 
-struct speedpwr // speed+power usage statistics for const/accel/decel
+struct vx_speedpwr // speed+power usage statistics for const/accel/decel
 {
   // Model
 
@@ -57,7 +57,7 @@ struct speedpwr // speed+power usage statistics for const/accel/decel
 
 };
 
-struct levelpwr // power usage statistics for level up/down
+struct vx_levelpwr // power usage statistics for level up/down
 {
   // Model
 

@@ -39,6 +39,18 @@ static const char *TAG = "v-vectrixvx1";
 #include "metrics_standard.h"
 #include "ovms_webserver.h"
 
+class OvmsVehicleVectrixVX1Init
+  {
+  public: OvmsVehicleVectrixVX1Init();
+} MyOvmsVehicleVectrixVX1Init  __attribute__ ((init_priority (9000)));
+
+OvmsVehicleVectrixVX1Init::OvmsVehicleVectrixVX1Init()
+  {
+  ESP_LOGI(TAG, "Registering Vehicle: Vectrix VX1 (9000)");
+
+  MyVehicleFactory.RegisterVehicle<OvmsVehicleVectrixVX1>("VV","Vectrix VX1");
+  }
+
 OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
   {
   ESP_LOGI(TAG, "Vectrix VX1 vehicle module");
@@ -402,15 +414,3 @@ OvmsVehicleVectrixVX1::vehicle_command_t OvmsVehicleVectrixVX1::CommandStat(int 
 
   return Success;
 }
-
-class OvmsVehicleVectrixVX1Init
-  {
-  public: OvmsVehicleVectrixVX1Init();
-} MyOvmsVehicleVectrixVX1Init  __attribute__ ((init_priority (9000)));
-
-OvmsVehicleVectrixVX1Init::OvmsVehicleVectrixVX1Init()
-  {
-  ESP_LOGI(TAG, "Registering Vehicle: Vectrix VX1 (9000)");
-
-  MyVehicleFactory.RegisterVehicle<OvmsVehicleVectrixVX1>("RT","Vectrix VX1");
-  }

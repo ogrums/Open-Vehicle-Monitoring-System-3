@@ -113,10 +113,10 @@ void OvmsVehicleVectrixVX1::PowerUpdateMetrics()
   *StdMetrics.ms_v_bat_energy_recd = (float) pwr / WH_DIV / 1000;
   *StdMetrics.ms_v_bat_coulomb_recd = (float) vx1_charge_rec / AH_DIV;
 
-  for (speedpwr &stats : vx1_speedpwr)
+  for (vx_speedpwr &stats : vx1_speedpwr)
     stats.UpdateMetrics();
 
-  for (levelpwr &stats : vx1_levelpwr)
+  for (vx_levelpwr &stats : vx1_levelpwr)
     stats.UpdateMetrics();
 
 }
@@ -139,10 +139,10 @@ bool OvmsVehicleVectrixVX1::PowerIsModified()
 {
   bool modified = false;
 
-  for (speedpwr &stats : vx1_speedpwr)
+  for (vx_speedpwr &stats : vx1_speedpwr)
     modified |= stats.IsModified(m_modifier);
 
-  for (levelpwr &stats : vx1_levelpwr)
+  for (vx_levelpwr &stats : vx1_levelpwr)
     modified |= stats.IsModified(m_modifier);
 
   return modified;
@@ -235,7 +235,7 @@ void OvmsVehicleVectrixVX1::PowerReset()
 {
   ESP_LOGD(TAG, "pwrmon reset");
 
-  for (speedpwr &stats : vx1_speedpwr)
+  for (vx_speedpwr &stats : vx1_speedpwr)
   {
     stats.dist = 0;
     stats.use = 0;
@@ -244,7 +244,7 @@ void OvmsVehicleVectrixVX1::PowerReset()
     stats.spdcnt = 0;
   }
 
-  for (levelpwr &stats : vx1_levelpwr)
+  for (vx_levelpwr &stats : vx1_levelpwr)
   {
     stats.dist = 0;
     stats.use = 0;
@@ -272,7 +272,7 @@ void OvmsVehicleVectrixVX1::PowerReset()
 
 
 
-void speedpwr::InitMetrics(int i, metric_unit_t spdunit)
+void vx_speedpwr::InitMetrics(int i, metric_unit_t spdunit)
 {
   m_dist = MyMetrics.InitFloat(x_vv_p_stats_speed_dist[i], SM_STALE_HIGH, 0, Kilometers);
   m_used = MyMetrics.InitFloat(x_vv_p_stats_speed_used[i], SM_STALE_HIGH, 0, kWh);
@@ -281,7 +281,7 @@ void speedpwr::InitMetrics(int i, metric_unit_t spdunit)
   m_spdunit = spdunit;
 }
 
-void speedpwr::UpdateMetrics()
+void vx_speedpwr::UpdateMetrics()
 {
   *m_dist = (float) dist / 10000;
   *m_used = (float) use / WH_DIV / 1000;
@@ -292,7 +292,7 @@ void speedpwr::UpdateMetrics()
     *m_spdavg = (float) 0;
 }
 
-bool speedpwr::IsModified(size_t m_modifier)
+bool vx_speedpwr::IsModified(size_t m_modifier)
 {
   bool modified =
     m_dist->IsModifiedAndClear(m_modifier) |
@@ -303,7 +303,7 @@ bool speedpwr::IsModified(size_t m_modifier)
 }
 
 
-void levelpwr::InitMetrics(int i)
+void vx_levelpwr::InitMetrics(int i)
 {
   m_dist = MyMetrics.InitFloat(x_vv_p_stats_level_dist[i], SM_STALE_HIGH, 0, Kilometers);
   m_hsum = MyMetrics.InitFloat(x_vv_p_stats_level_hsum[i], SM_STALE_HIGH, 0, Meters);
@@ -311,7 +311,7 @@ void levelpwr::InitMetrics(int i)
   m_recd = MyMetrics.InitFloat(x_vv_p_stats_level_recd[i], SM_STALE_HIGH, 0, kWh);
 }
 
-void levelpwr::UpdateMetrics()
+void vx_levelpwr::UpdateMetrics()
 {
   *m_dist = (float) dist / 1000;
   *m_hsum = (float) hsum;
@@ -319,7 +319,7 @@ void levelpwr::UpdateMetrics()
   *m_recd = (float) rec / WH_DIV / 1000;
 }
 
-bool levelpwr::IsModified(size_t m_modifier)
+bool vx_levelpwr::IsModified(size_t m_modifier)
 {
   bool modified =
     m_dist->IsModifiedAndClear(m_modifier) |

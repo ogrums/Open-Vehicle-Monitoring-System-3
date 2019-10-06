@@ -267,7 +267,7 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
       OvmsCommand *cmd_power;
       void PowerCollectData();
 
-      speedpwr vx1_speedpwr[3];                 // speed power usage statistics
+      vx_speedpwr vx1_speedpwr[3];                 // speed power usage statistics
       UINT8 vx1_speed_state = 0;                    // speed state, one of:
       #define CAN_SPEED_CONST         0           // constant speed
       #define CAN_SPEED_ACCEL         1           // accelerating
@@ -288,7 +288,7 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
       unsigned int vx1_speed_distref = 0;           // distance reference for speed section
 
 
-      levelpwr vx1_levelpwr[2];                 // level power usage statistics
+      vx_levelpwr vx1_levelpwr[2];                 // level power usage statistics
       #define CAN_LEVEL_UP            0           // uphill
       #define CAN_LEVEL_DOWN          1           // downhill
 
