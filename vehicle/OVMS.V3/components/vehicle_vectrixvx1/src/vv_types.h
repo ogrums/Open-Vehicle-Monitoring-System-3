@@ -28,6 +28,16 @@
 
 #include <sys/param.h>
 
+// Legacy type compatibility:
+
+typedef uint8_t UINT8;
+typedef uint32_t UINT;    // Note: fatfs defines this as 32 bit, so we stick to that
+typedef uint32_t UINT32;
+
+typedef int8_t INT8;
+typedef int32_t INT;      // 32 bit for consistency with UINT
+typedef int32_t INT32;
+
 
 // Math utils:
 #define SQR(n) ((n)*(n))

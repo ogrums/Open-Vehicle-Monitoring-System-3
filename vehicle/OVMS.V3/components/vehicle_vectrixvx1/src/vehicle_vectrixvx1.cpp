@@ -59,6 +59,14 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
   BmsSetCellLimitsTemperature(-5,35);
   BmsSetCellDefaultThresholdsVoltage(0.030, 0.040);
   BmsSetCellDefaultThresholdsTemperature(2.0, 3.0);
+
+  // init commands:
+  cmd_xvv = MyCommandApp.RegisterCommand("xvv", "Vectrix VX1");
+
+
+  // init subsystems:
+  BatteryInit();
+
   #ifdef CONFIG_OVMS_COMP_WEBSERVER
     WebInit();
   #endif
@@ -305,6 +313,96 @@ void OvmsVehicleVectrixVX1::Notify12vRecovered()
   { // Not supported on Vectrix
   }
 
+/**
+ * CommandStat: Twizy implementation of vehicle status output
+ */
+OvmsVehicleVectrixVX1::vehicle_command_t OvmsVehicleVectrixVX1::CommandStat(int verbosity, OvmsWriter* writer)
+{
+  metric_unit_t rangeUnit = (MyConfig.GetParamValue("vehicle", "units.distance") == "M") ? Miles : Kilometers;
+
+  bool chargeport_open = StdMetrics.ms_v_door_chargeport->AsBool();
+  if (chargeport_open)
+  {
+    std::string charge_state = StdMetrics.ms_v_charge_state->AsString();
+
+    if (charge_state != "done") {
+      if (cfg_suffsoc > 0 && vx1_soc >= cfg_suffsoc*100 && cfg_suffrange > 0 && vx1_range_ideal >= cfg_suffrange)
+        writer->puts("Sufficient SOC and range reached.");
+      else if (cfg_suffsoc > 0 && vx1_soc >= cfg_suffsoc*100)
+        writer->puts("Sufficient SOC level reached.");
+      else if (cfg_suffrange > 0 && vx1_range_ideal >= cfg_suffrange)
+        writer->puts("Sufficient range reached.");
+    }
+
+    // Translate state codes:
+    if (charge_state == "charging")
+      charge_state = "Charging";
+    else if (charge_state == "topoff")
+      charge_state = "Topping off";
+    else if (charge_state == "done")
+      charge_state = "Charge Done";
+    else if (charge_state == "stopped")
+      charge_state = "Charge Stopped";
+
+    writer->puts(charge_state.c_str());
+
+    // Power sums: battery input:
+    float pwr_batt = StdMetrics.ms_v_bat_energy_recd->AsFloat() * 1000;
+    // Grid drain estimation:
+    //  charge efficiency is ~88.1% w/o 12V charge and ~86.4% with
+    //  (depending on when to cut the grid connection)
+    //  so we're using 87.2% as an average efficiency:
+    float pwr_grid = pwr_batt / 0.872;
+    writer->printf("CHG: %d (~%d) Wh\n", (int) pwr_batt, (int) pwr_grid);
+  }
+  else
+  {
+    // Charge port door is closed, not charging
+    writer->puts("Not charging");
+  }
+
+  // Estimated charge time for 100%:
+  if (vx1_soc < 10000)
+  {
+    int duration_full = StdMetrics.ms_v_charge_duration_full->AsInt();
+    if (duration_full)
+      writer->printf("Full: %d min.\n", duration_full);
+  }
+
+  // Estimated + Ideal Range:
+  const char* range_est = StdMetrics.ms_v_bat_range_est->AsString("?", rangeUnit, 0).c_str();
+  const char* range_ideal = StdMetrics.ms_v_bat_range_ideal->AsUnitString("?", rangeUnit, 0).c_str();
+  writer->printf("Range: %s - %s\n", range_est, range_ideal);
+
+  // SOC + min/max:
+  writer->printf("SOC: %s (%s..%s)\n",
+    (char*) StdMetrics.ms_v_bat_soc->AsUnitString("-", Native, 1).c_str(),
+    (char*) m_batt_use_soc_min->AsString("-", Native, 1).c_str(),
+    (char*) m_batt_use_soc_max->AsUnitString("-", Native, 1).c_str());
+
+  // ODOMETER:
+  const char* odometer = StdMetrics.ms_v_pos_odometer->AsUnitString("-", rangeUnit, 1).c_str();
+  if (*odometer != '-')
+    writer->printf("ODO: %s\n", odometer);
+
+  // BATTERY CAPACITY:
+  if (cfg_bat_cap_actual_prc > 0)
+  {
+    writer->printf("CAP: %.1f%% %s\n",
+      cfg_bat_cap_actual_prc,
+      StdMetrics.ms_v_bat_cac->AsUnitString("-", Native, 1).c_str());
+  }
+
+  // BATTERY SOH:
+  if (vx1_soh > 0)
+  {
+    writer->printf("SOH: %s\n",
+      StdMetrics.ms_v_bat_soh->AsUnitString("-", Native, 0).c_str());
+  }
+
+  return Success;
+}
+
 class OvmsVehicleVectrixVX1Init
   {
   public: OvmsVehicleVectrixVX1Init();
@@ -314,5 +412,5 @@ OvmsVehicleVectrixVX1Init::OvmsVehicleVectrixVX1Init()
   {
   ESP_LOGI(TAG, "Registering Vehicle: Vectrix VX1 (9000)");
 
-  MyVehicleFactory.RegisterVehicle<OvmsVehicleVectrixVX1>("VV","Vectrix VX1");
+  MyVehicleFactory.RegisterVehicle<OvmsVehicleVectrixVX1>("RT","Vectrix VX1");
   }
