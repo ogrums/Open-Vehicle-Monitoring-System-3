@@ -38,6 +38,9 @@
 #include "ovms_config.h"
 #include "ovms_metrics.h"
 #include "ovms_command.h"
+#ifdef CONFIG_OVMS_COMP_WEBSERVER
+#include "ovms_webserver.h"
+#endif
 
 #include "vv_types.h"
 #include "vv_battmon.h"
@@ -71,6 +74,27 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
     vehicle_command_t CommandStat(int verbosity, OvmsWriter* writer);
 
   protected:
+    // Car + charge status from CAN:
+    #define CAN_STATUS_FOOTBRAKE    0x01        //  bit 0 = 0x01: 1 = Footbrake
+    #define CAN_STATUS_MODE_D       0x02        //  bit 1 = 0x02: 1 = Forward mode "D"
+    #define CAN_STATUS_MODE_R       0x04        //  bit 2 = 0x04: 1 = Reverse mode "R"
+    #define CAN_STATUS_MODE         0x06        //  mask
+    #define CAN_STATUS_GO           0x08        //  bit 3 = 0x08: 1 = "GO" = Motor ON (Ignition)
+    #define CAN_STATUS_KEYON        0x10        //  bit 4 = 0x10: 1 = Car awake (key turned)
+    #define CAN_STATUS_CHARGING     0x20        //  bit 5 = 0x20: 1 = Charging
+    #define CAN_STATUS_OFFLINE      0x40        //  bit 6 = 0x40: 1 = Switch-ON/-OFF phase / 0 = normal operation
+    #define CAN_STATUS_ONLINE       0x80        //  bit 7 = 0x80: 1 = CAN-Bus online (test flag to detect offline)
+    unsigned char vx1_status = CAN_STATUS_OFFLINE;
+
+    OvmsMetricInt *mt_charger_status;           // CAN frame 627 → xrt.v.c.status
+    OvmsMetricInt *mt_bms_status;               // CAN frame 628 → xrt.v.b.status
+    OvmsMetricInt *mt_sevcon_status;            // CAN frame 629 → xrt.v.i.status
+
+    OvmsMetricBool *mt_bms_alert_12v;           // see https://github.com/dexterbg/Twizy-Virtual-BMS/blob/master/extras/Protocol.ods
+    OvmsMetricBool *mt_bms_alert_batt;
+    OvmsMetricBool *mt_bms_alert_temp;
+
+
     int vx1_tmotor = 0;                           // motor temperature [°C]
     int vx1_soh = 0;                              // BMS SOH [%]
 
@@ -91,7 +115,7 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
     int cfg_maxrange = CFG_DEFAULT_MAXRANGE;        // Configured max range at 20 °C
     float vx1_maxrange = 0;                       // Max range at current temperature
 
-    #define CFG_DEFAULT_CAPACITY 108
+    #define CFG_DEFAULT_CAPACITY 40
     float cfg_bat_cap_actual_prc = 100;     // actual capacity in percent of…
     float cfg_bat_cap_nominal_ah = CFG_DEFAULT_CAPACITY; // …usable capacity of fresh battery in Ah
 
@@ -161,12 +185,6 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
     UINT8 vx1_cc_power_level = 0;         // end of CC phase detection
     UINT vx1_cc_soc = 0;                  // SOC at end of CC phase
 
-    #define CFG_DEFAULT_CAPACITY 108
-    float cfg_bat_cap_actual_prc = 100;     // actual capacity in percent of…
-    float cfg_bat_cap_nominal_ah = CFG_DEFAULT_CAPACITY; // …usable capacity of fresh battery in Ah
-
-    int vx1_chargeduration = 0;           // charge duration in seconds
-
     int cfg_aux_fan_port = 0;               // EGPIO port number for auxiliary charger fan
     int cfg_aux_charger_port = 0;           // EGPIO port number for auxiliary charger
 
@@ -215,9 +233,10 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
 
   public:
     void WebInit();
-    void WebDeInit();
+    static void WebPowerMon(PageEntry_t& p, PageContext_t& c);
     //static void WebCfgFeatures(PageEntry_t& p, PageContext_t& c);
     //static void WebCfgBattery(PageEntry_t& p, PageContext_t& c);
+    void WebDeInit();
 
   public:
     void GetDashboardConfig(DashboardConfig& cfg);
