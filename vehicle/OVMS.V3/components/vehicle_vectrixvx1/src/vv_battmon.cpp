@@ -94,14 +94,15 @@ void OvmsVehicleVectrixVX1::BatteryInit()
   m_batt_use_temp_max = MyMetrics.InitFloat("xvv.b.u.temp.max", SM_STALE_HIGH, 0, Celcius);
 
   // BMS configuration:
-  //    Note: layout currently fixed to 2 voltages + 1 temperature per module,
+  //    Note: layout currently fixed to 10 voltages + 1 temperature per module,
   //          this may need refinement for custom batteries
-  BmsSetCellArrangementVoltage(batt_cell_count, 2);
+  BmsSetCellArrangementVoltage(batt_cell_count, 10);
   BmsSetCellArrangementTemperature(batt_cmod_count, 1);
-  BmsSetCellLimitsVoltage(2.0, 5.0);
-  BmsSetCellLimitsTemperature(-39, 200);
+  BmsSetCellLimitsVoltage(2.6, 3.60);
+  BmsSetCellLimitsTemperature(-5, 35);
   BmsSetCellDefaultThresholdsVoltage(0.020, 0.030);
   BmsSetCellDefaultThresholdsTemperature(2.0, 3.0);
+
 
   // init commands
 
@@ -147,8 +148,8 @@ void OvmsVehicleVectrixVX1::BatteryUpdateMetrics()
   *m_batt_use_temp_min = (float) vx1_batt[0].temp_min - 40;
   *m_batt_use_temp_max = (float) vx1_batt[0].temp_max - 40;
 
-  float vmin = MyConfig.GetParamValueFloat("xvv", "cell_volt_min", 3.165);
-  float vmax = MyConfig.GetParamValueFloat("xvv", "cell_volt_max", 4.140);
+  float vmin = MyConfig.GetParamValueFloat("xvv", "cell_volt_min", 2.600);
+  float vmax = MyConfig.GetParamValueFloat("xvv", "cell_volt_max", 3.600);
   *StdMetrics.ms_v_bat_pack_level_min = (float) TRUNCPREC((((float)vx1_batt[0].cell_volt_min/200)-vmin) / (vmax-vmin) * 100, 3);
   *StdMetrics.ms_v_bat_pack_level_max = (float) TRUNCPREC((((float)vx1_batt[0].cell_volt_max/200)-vmin) / (vmax-vmin) * 100, 3);
   *StdMetrics.ms_v_bat_pack_level_avg = (float) TRUNCPREC(((vx1_batt[0].cell_volt_avg/200)-vmin) / (vmax-vmin) * 100, 3);

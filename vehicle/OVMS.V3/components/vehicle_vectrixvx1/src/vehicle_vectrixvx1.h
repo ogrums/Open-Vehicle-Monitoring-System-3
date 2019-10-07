@@ -324,14 +324,16 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
       void BatteryCheckDeviations();
 
       #define BATT_PACKS      1
-      #define BATT_CELLS      16                  // 14 on LiPo pack, 16 on LiFe pack
-      //#define BATT_CELLS      40                  // 40 Cells on life pack Vectrix
-      #define BATT_CMODS      8                   // 7 on LiPo pack, 8 on LiFe pack
-      //#define BATT_CMODS      4                   // 4 BMS on LiFe Vectrix
+      //#define BATT_CELLS      16                  // 14 on LiPo pack, 16 on LiFe pack
+      #define BATT_CELLS      40                  // 40 Cells on life pack Vectrix
+      //#define BATT_CMODS      8                   // 7 probes on LiPo pack, 8 on LiFe pack
+      #define BATT_CMODS      4                   // 4 BMS on LiFe Vectrix
 
       UINT8 batt_pack_count = 1;
-      UINT8 batt_cmod_count = 7;      // Just for Twizy
-      UINT8 batt_cell_count = 14;     // Just for Twizy
+      //UINT8 batt_cmod_count = 7;      // Just for Twizy
+      //UINT8 batt_cell_count = 14;     // Just for Twizy
+      UINT8 batt_cmod_count = 4;      // Test for Vectrix
+      UINT8 batt_cell_count = 40;     // Test for Vectrix
 
       OvmsCommand *cmd_batt;
 

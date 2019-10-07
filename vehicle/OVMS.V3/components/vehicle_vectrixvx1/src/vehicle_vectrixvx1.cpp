@@ -65,18 +65,21 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
 
   RegisterCanBus(1,CAN_MODE_ACTIVE,CAN_SPEED_250KBPS);
 
+ /** Test change to integratation vv_battmon
   BmsSetCellArrangementVoltage(40, 10);
   BmsSetCellArrangementTemperature(4, 1);
   BmsSetCellLimitsVoltage(2.6,3.60);
   BmsSetCellLimitsTemperature(-5,35);
   BmsSetCellDefaultThresholdsVoltage(0.030, 0.040);
   BmsSetCellDefaultThresholdsTemperature(2.0, 3.0);
+*/
 
   // init commands:
   cmd_xvv = MyCommandApp.RegisterCommand("xvv", "Vectrix VX1");
 
 
   // init subsystems:
+  PowerInit();
   BatteryInit();
 
   #ifdef CONFIG_OVMS_COMP_WEBSERVER
