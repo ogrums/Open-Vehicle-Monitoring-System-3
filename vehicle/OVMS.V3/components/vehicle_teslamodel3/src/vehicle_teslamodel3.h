@@ -1,6 +1,6 @@
 /*
 ;    Project:       Open Vehicle Monitor System
-;    Date:          9th December 2017
+;    Date:          14th March 2017
 ;
 ;    Changes:
 ;    1.0  Initial release
@@ -8,7 +8,6 @@
 ;    (C) 2011       Michael Stegen / Stegen Electronics
 ;    (C) 2011-2017  Mark Webb-Johnson
 ;    (C) 2011        Sonny Chen @ EPRO/DX
-;    (C) 2012-2017  Michael Balzer
 ;
 ; Permission is hereby granted, free of charge, to any person obtaining a copy
 ; of this software and associated documentation files (the "Software"), to deal
@@ -29,31 +28,33 @@
 ; THE SOFTWARE.
 */
 
-#ifndef __GSM_NMEA_H__
-#define __GSM_NMEA_H__
+#ifndef __VEHICLE_TESLAMODEL3_H__
+#define __VEHICLE_TESLAMODEL3_H__
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "driver/uart.h"
-#include "gsmmux.h"
+#include "vehicle.h"
+#include "ovms_metrics.h"
 
-class GsmNMEA : public InternalRamAllocated
+using namespace std;
+
+class OvmsVehicleTeslaModel3: public OvmsVehicle
   {
   public:
-    GsmNMEA(GsmMux* mux, int channel);
-    ~GsmNMEA();
+    OvmsVehicleTeslaModel3();
+    ~OvmsVehicleTeslaModel3();
 
   public:
-    void IncomingLine(const std::string line);
-    void Startup();
-    void Shutdown(bool hard=false);
+    void IncomingFrameCan1(CAN_frame_t* p_frame);
+    void IncomingFrameCan2(CAN_frame_t* p_frame);
+    void IncomingFrameCan3(CAN_frame_t* p_frame);
 
-  public:
-    GsmMux*       m_mux;
-    int           m_channel;
-    bool          m_connected;
-    bool          m_gpstime_enabled;
+  protected:
+    virtual void Notify12vCritical();
+    virtual void Notify12vRecovered();
+    virtual void NotifyBmsAlerts();
+
+  protected:
+    char m_vin[18];
+    char m_type[5];
   };
 
-#endif //#ifndef __GSM_NMEA__
+#endif //#ifndef __VEHICLE_TESLAMODEL3_H__

@@ -262,6 +262,13 @@ config OVMS_VEHICLE_VECTRIXVX1
     help
         Enable to include support for Vectrix VX-1 vehicles.
 
+config OVMS_VEHICLE_TESLAMODEL3
+    bool "Include support for Tesla Model 3 vehicles"
+    default y
+    depends on OVMS
+    help
+        Enable to include support for Tesla Model 3 vehicles.
+
 config OVMS_VEHICLE_NISSANLEAF
     bool "Include support for Nissan Leaf vehicles"
     default y
