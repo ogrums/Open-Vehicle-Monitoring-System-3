@@ -3,7 +3,6 @@
    :widths: auto, auto, auto, auto, auto, auto
    :stub-columns: 1
    :delim: ";"
-
   
    Module;;;;;
    m.version;OvmsMetricString;ms_m_version;;;
