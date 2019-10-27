@@ -1,8 +1,8 @@
 .. csv-table:: Standard Metric
    :header: Metric Name;Metric Type;Metric variable Name;Unit;Example Value;Metric Description
-   :widths: auto, auto, auto, auto, auto, auto
+   :widths: auto
    :stub-columns: 1
-   :delim: ";"
+   :delim: U+003B
   
    Module;;;;;
    m.version;OvmsMetricString;ms_m_version;;;
