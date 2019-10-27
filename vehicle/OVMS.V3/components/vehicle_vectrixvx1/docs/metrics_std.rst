@@ -1,5 +1,5 @@
 .. csv-table:: Standard Metric
-   :header-row: 1
+   :header-rows: 1
    :widths: auto
    :stub-columns: 1
    :delim: U+003B
