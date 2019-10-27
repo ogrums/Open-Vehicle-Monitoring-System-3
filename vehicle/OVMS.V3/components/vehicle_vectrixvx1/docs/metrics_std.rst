@@ -2,7 +2,7 @@
    :header: Metric Name;Metric Type;Metric variable Name;Unit;Example Value;Metric Description
    :widths: auto, auto, auto, auto, auto, auto
    :stub-columns: 1
-   :delim: ;
+   :delim: ";"
 
   
    Module;;;;;
