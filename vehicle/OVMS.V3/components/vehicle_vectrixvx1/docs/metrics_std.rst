@@ -1,24 +1,24 @@
-.. Standard Metric:: Standard Metric
+.. csv-table:: Standard Metric
    :header: Metric Name,Metric Type,Metric variable Name,Unit,Example Value,Metric Description
    :widths: auto, auto, auto, auto, auto, auto
    :stub-columns: 1
 
-Module,,,,,
-m.version,OvmsMetricString,ms_m_version,,,,
-m.hardware,OvmsMetricString,ms_m_hardware,,,,
-m.serial,OvmsMetricString,ms_m_serial,,,,
-m.tasks,OvmsMetricInt,ms_m_tasks,,,,
-m.freeram,OvmsMetricInt,ms_m_freeram,,,,
-m.monotonic,OvmsMetricInt,ms_m_monotonic,,,,
-m.time.utc,OvmsMetricInt,ms_m_timeutc,,,,
-Network,,,,,
-m.net.type,OvmsMetricString,ms_m_net_type,,,none, wifi, modem
-m.net.sq,OvmsMetricInt,ms_m_net_sq,[dbm],,Network signal quality 
-m.net.provider,OvmsMetricString,ms_m_net_provider,,,Network provider name
-m.net.wifi.network,OvmsMetricString,ms_m_net_wifi_network,,,Wifi network SSID
-m.net.wifi.sq,OvmsMetricFloat,ms_m_net_wifi_sq,[dbm],,Wifi network signal quality
-m.net.mdm.network,OvmsMetricString,ms_m_net_mdm_network,,,Modem network operator
-m.net.mdm.sq,OvmsMetricFloat,ms_m_net_mdm_sq,[dbm],,Modem network signal quality
+   Module,,,,,
+   m.version,OvmsMetricString,ms_m_version,,,,
+   m.hardware,OvmsMetricString,ms_m_hardware,,,,
+   m.serial,OvmsMetricString,ms_m_serial,,,,
+   m.tasks,OvmsMetricInt,ms_m_tasks,,,,
+   m.freeram,OvmsMetricInt,ms_m_freeram,,,,
+   m.monotonic,OvmsMetricInt,ms_m_monotonic,,,,
+   m.time.utc,OvmsMetricInt,ms_m_timeutc,,,,
+   Network,,,,,
+   m.net.type,OvmsMetricString,ms_m_net_type,,,none, wifi, modem
+   m.net.sq,OvmsMetricInt,ms_m_net_sq,[dbm],,Network signal quality
+   m.net.provider,OvmsMetricString,ms_m_net_provider,,,Network provider name
+   m.net.wifi.network,OvmsMetricString,ms_m_net_wifi_network,,,Wifi network SSID
+   m.net.wifi.sq,OvmsMetricFloat,ms_m_net_wifi_sq,[dbm],,Wifi network signal quality
+   m.net.mdm.network,OvmsMetricString,ms_m_net_mdm_network,,,Modem network operator
+   m.net.mdm.sq,OvmsMetricFloat,ms_m_net_mdm_sq,[dbm],,Modem network signal quality
 m.net.mdm.iccid,OvmsMetricString,ms_m_net_mdm_iccid,,,,
 m.net.mdm.model,OvmsMetricString,ms_m_net_mdm_model,,,,
 Server,,,,,
@@ -49,7 +49,7 @@ v.b.12v.voltage,OvmsMetricFloat,ms_v_bat_12v_voltage, [V],,Auxiliary 12V battery
 v.b.12v.current,OvmsMetricFloat,ms_v_bat_12v_current, [A],,Auxiliary 12V battery momentary current
 v.b.12v.voltage.ref,OvmsMetricFloat,ms_v_bat_12v_voltage_ref, [V],,Auxiliary 12V battery reference voltage
 v.b.12v.voltage.alert,OvmsMetricBool,ms_v_bat_12v_voltage_alert,,,True = auxiliary battery under voltage alert
-v.b.temp,OvmsMetricFloat,ms_v_bat_temp, [°C],,Battery temperature
+v.b.temp,OvmsMetricFloat,ms_v_bat_temp, [ï¿½C],,Battery temperature
 Battery Cells [%],,,,,
 v.b.p.level.min,OvmsMetricFloat,ms_v_bat_pack_level_min, [%],,Cell level - weakest cell in pack
 v.b.p.level.max,OvmsMetricFloat,ms_v_bat_pack_level_max, [%],,Cell level - strongest cell in pack
@@ -62,23 +62,23 @@ v.b.p.voltage.max,OvmsMetricFloat,ms_v_bat_pack_vmax, [V],,Cell voltage - strong
 v.b.p.voltage.avg,OvmsMetricFloat,ms_v_bat_pack_vavg, [V],,Cell voltage - pack average
 v.b.p.voltage.stddev,OvmsMetricFloat,ms_v_bat_pack_vstddev, [V],,Cell voltage - current standard deviation
 v.b.p.voltage.stddev.max,OvmsMetricFloat,ms_v_bat_pack_vstddev_max, [V],,Cell voltage - maximum standard deviation observed
-Battery Cells Temperature [°C],,,,,
-v.b.p.temp.min,OvmsMetricFloat,ms_v_bat_pack_tmin, [°C],,Cell temperature - coldest cell in pack
-v.b.p.temp.max,OvmsMetricFloat,ms_v_bat_pack_tmax, [°C],,Cell temperature - warmest cell in pack
-v.b.p.temp.avg,OvmsMetricFloat,ms_v_bat_pack_tavg, [°C],,Cell temperature - pack average
-v.b.p.temp.stddev,OvmsMetricFloat,ms_v_bat_pack_tstddev, [°C],,Cell temperature - current standard deviation
-v.b.p.temp.stddev.max,OvmsMetricFloat,ms_v_bat_pack_tstddev_max, [°C],,Cell temperature - maximum standard deviation observed
+Battery Cells Temperature [ï¿½C],,,,,
+v.b.p.temp.min,OvmsMetricFloat,ms_v_bat_pack_tmin, [ï¿½C],,Cell temperature - coldest cell in pack
+v.b.p.temp.max,OvmsMetricFloat,ms_v_bat_pack_tmax, [ï¿½C],,Cell temperature - warmest cell in pack
+v.b.p.temp.avg,OvmsMetricFloat,ms_v_bat_pack_tavg, [ï¿½C],,Cell temperature - pack average
+v.b.p.temp.stddev,OvmsMetricFloat,ms_v_bat_pack_tstddev, [ï¿½C],,Cell temperature - current standard deviation
+v.b.p.temp.stddev.max,OvmsMetricFloat,ms_v_bat_pack_tstddev_max, [ï¿½C],,Cell temperature - maximum standard deviation observed
 Bettery Cells Stats Voltage [V],,,,,
 v.b.c.voltage,OvmsMetricVector<float>,ms_v_bat_cell_voltage, [V],,Cell voltages
 v.b.c.voltage.min,OvmsMetricVector<float>,ms_v_bat_cell_vmin, [V],,Cell minimum voltages
 v.b.c.voltage.max,OvmsMetricVector<float>,ms_v_bat_cell_vmax, [V],,Cell maximum voltages
 v.b.c.voltage.dev.max,OvmsMetricVector<float>,ms_v_bat_cell_vdevmax, [V],,Cell maximum voltage deviation observed
 v.b.c.voltage.alert,OvmsMetricVector<short>,ms_v_bat_cell_valert,,,Cell voltage deviation alert level [0=normal, 1=warning, 2=alert]
-Bettery Cells Stats Temperature [°C],,,,,
-v.b.c.temp,OvmsMetricVector<float>,ms_v_bat_cell_temp, [°C],,Cell temperatures
-v.b.c.temp.min,OvmsMetricVector<float>,ms_v_bat_cell_tmin, [°C],,Cell minimum temperatures
-v.b.c.temp.max,OvmsMetricVector<float>,ms_v_bat_cell_tmax, [°C],,Cell maximum temperatures
-v.b.c.temp.dev.max,OvmsMetricVector<float>,ms_v_bat_cell_tdevmax, [°C],,Cell maximum temperature deviation observed
+Bettery Cells Stats Temperature [ï¿½C],,,,,
+v.b.c.temp,OvmsMetricVector<float>,ms_v_bat_cell_temp, [ï¿½C],,Cell temperatures
+v.b.c.temp.min,OvmsMetricVector<float>,ms_v_bat_cell_tmin, [ï¿½C],,Cell minimum temperatures
+v.b.c.temp.max,OvmsMetricVector<float>,ms_v_bat_cell_tmax, [ï¿½C],,Cell maximum temperatures
+v.b.c.temp.dev.max,OvmsMetricVector<float>,ms_v_bat_cell_tdevmax, [ï¿½C],,Cell maximum temperature deviation observed
 v.b.c.temp.alert,OvmsMetricVector<short>,ms_v_bat_cell_talert,,,Cell temperature deviation alert level [0=normal, 1=warning, 2=alert]
 Charger Status,,,,,
 v.c.voltage,OvmsMetricFloat,ms_v_charge_voltage, [V],,Momentary charger supply voltage
@@ -97,14 +97,14 @@ v.c.charging,OvmsMetricBool,ms_v_charge_inprogress,,,True = currently charging
 v.c.limit.range,OvmsMetricFloat,ms_v_charge_limit_range, [km],,Sufficient range limit for current charge
 v.c.limit.soc,OvmsMetricFloat,ms_v_charge_limit_soc, [%],,Sufficient SOC limit for current charge
 v.c.duration.full,OvmsMetricInt,ms_v_charge_duration_full, [min],,Estimated time remaing for full charge
-v.c.duration.range,OvmsMetricInt,ms_v_charge_duration_range, [min],,… for sufficient range
-v.c.duration.soc,OvmsMetricInt,ms_v_charge_duration_soc, [min],,… for sufficient SOC
-v.c.temp,OvmsMetricFloat,ms_v_charge_temp, [°C],,Charger temperature
+v.c.duration.range,OvmsMetricInt,ms_v_charge_duration_range, [min],,ï¿½ for sufficient range
+v.c.duration.soc,OvmsMetricInt,ms_v_charge_duration_soc, [min],,ï¿½ for sufficient SOC
+v.c.temp,OvmsMetricFloat,ms_v_charge_temp, [ï¿½C],,Charger temperature
 Inverter Status,,,,,
-v.i.temp,OvmsMetricFloat,ms_v_inv_temp, [°C],,Inverter temperature
+v.i.temp,OvmsMetricFloat,ms_v_inv_temp, [ï¿½C],,Inverter temperature
 Motor Status,,,,,
 v.m.rpm,OvmsMetricInt,ms_v_mot_rpm,[RPM],,Motor speed
-v.m.temp,OvmsMetricFloat,ms_v_mot_temp, [°C],,Motor temperature
+v.m.temp,OvmsMetricFloat,ms_v_mot_temp, [ï¿½C],,Motor temperature
 Doors Status,,,,,
 v.d.fl,OvmsMetricBool,ms_v_door_fl,,,,Front Left Door Open/Close
 v.d.fr,OvmsMetricBool,ms_v_door_fr,,,,Front Right Door Open/Close
@@ -134,8 +134,8 @@ v.e.parktime,OvmsMetricInt,ms_v_env_parktime,,,,Park Time
 v.e.drivetime,OvmsMetricInt,ms_v_env_drivetime,,,,Drive Time
 v.e.c.login,OvmsMetricBool,ms_v_env_ctrl_login,,,Module logged in at ECU/controller
 v.e.c.config,OvmsMetricBool,ms_v_env_ctrl_config,,,ECU/controller in configuration state
-v.e.temp,OvmsMetricFloat,ms_v_env_temp,[°C],,Ambient temperature 
-v.e.cabintemp,OvmsMetricFloat,ms_v_env_cabintemp,[°C],,Cabin temperature 
+v.e.temp,OvmsMetricFloat,ms_v_env_temp,[ï¿½C],,Ambient temperature
+v.e.cabintemp,OvmsMetricFloat,ms_v_env_cabintemp,[ï¿½C],,Cabin temperature
 GPS Status,,,,,
 v.p.gpslock,OvmsMetricBool,ms_v_pos_gpslock,,,,GPS lock status
 v.p.gpsmode,OvmsMetricString,ms_v_pos_gpsmode,,,<GPS><GLONASS>, N/A/D/E (None/Autonomous/Differential/Estimated)
@@ -145,16 +145,16 @@ v.p.latitude,OvmsMetricFloat,ms_v_pos_latitude,,,,Latitude
 v.p.longitude,OvmsMetricFloat,ms_v_pos_longitude,,,,Longitude
 v.p.direction,OvmsMetricFloat,ms_v_pos_direction,,,,Direction
 v.p.altitude,OvmsMetricFloat,ms_v_pos_altitude,,,,Altitude
-v.p.speed,OvmsMetricFloat,ms_v_pos_speed,[kph],,Vehicle speed 
-v.p.acceleration,OvmsMetricFloat,ms_v_pos_acceleration, [m/s²],,Vehicle acceleration
+v.p.speed,OvmsMetricFloat,ms_v_pos_speed,[kph],,Vehicle speed
+v.p.acceleration,OvmsMetricFloat,ms_v_pos_acceleration, [m/sï¿½],,Vehicle acceleration
 v.p.gpsspeed,OvmsMetricFloat,ms_v_pos_gpsspeed, [kph],,GPS speed over ground
 v.p.odometer,OvmsMetricFloat,ms_v_pos_odometer,,[Km],,Odometer
 v.p.trip,OvmsMetricFloat,ms_v_pos_trip,,,,Trip
 Tire Pressure,,,,,
-v.tp.fl.t,OvmsMetricFloat,ms_v_tpms_fl_t,,[°C],,Tire temperature Front Left
-v.tp.fr.t,OvmsMetricFloat,ms_v_tpms_fr_t,,[°C],,Tire temperature Front Right
-v.tp.rr.t,OvmsMetricFloat,ms_v_tpms_rr_t,,[°C],,Tire temperature Rear Right
-v.tp.rl.t,OvmsMetricFloat,ms_v_tpms_rl_t,,[°C],,Tire temperature Rear Left
+v.tp.fl.t,OvmsMetricFloat,ms_v_tpms_fl_t,,[ï¿½C],,Tire temperature Front Left
+v.tp.fr.t,OvmsMetricFloat,ms_v_tpms_fr_t,,[ï¿½C],,Tire temperature Front Right
+v.tp.rr.t,OvmsMetricFloat,ms_v_tpms_rr_t,,[ï¿½C],,Tire temperature Rear Right
+v.tp.rl.t,OvmsMetricFloat,ms_v_tpms_rl_t,,[ï¿½C],,Tire temperature Rear Left
 v.tp.fl.p,OvmsMetricFloat,ms_v_tpms_fl_p,,[psi],,Tire pressure Front Left
 v.tp.fr.p,OvmsMetricFloat,ms_v_tpms_fr_p,,[psi],,Tire pressure Front Right
 v.tp.rr.p,OvmsMetricFloat,ms_v_tpms_rr_p,,[psi],,Tire pressure Rear Right
