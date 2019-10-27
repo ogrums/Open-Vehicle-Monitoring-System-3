@@ -114,7 +114,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t* p_frame)
 	  case 0x18FEE017:
 		{
 		// Odometer:
-		StandardMetrics.ms_v_pos_odometer->SetValue((float) ((d[7] << 24) + (d[6] << 16) + (d[5] << 8) + d[4]) * 0.05, Kilometers);
+		//StandardMetrics.ms_v_pos_odometer->SetValue((float) ((d[7] << 24) + (d[6] << 16) + (d[5] << 8) + d[4]) * 0.05, Kilometers);
 		// trip A
 		StandardMetrics.ms_v_pos_trip->SetValue((float) ((d[1] << 8) + d[0]) * 0.05, Kilometers);
 		break;
