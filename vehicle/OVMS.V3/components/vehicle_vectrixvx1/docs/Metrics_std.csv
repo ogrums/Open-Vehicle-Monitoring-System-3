@@ -64,13 +64,13 @@ v.b.p.temp.max;OvmsMetricFloat;ms_v_bat_pack_tmax; [°C];;Cell temperature - warm
 v.b.p.temp.avg;OvmsMetricFloat;ms_v_bat_pack_tavg; [°C];;Cell temperature - pack average
 v.b.p.temp.stddev;OvmsMetricFloat;ms_v_bat_pack_tstddev; [°C];;Cell temperature - current standard deviation
 v.b.p.temp.stddev.max;OvmsMetricFloat;ms_v_bat_pack_tstddev_max; [°C];;Cell temperature - maximum standard deviation observed
-Bettery Cells Stats Voltage [V];;;;;
+Battery Cells Stats Voltage [V];;;;;
 v.b.c.voltage;OvmsMetricVector<float>;ms_v_bat_cell_voltage; [V];;Cell voltages
 v.b.c.voltage.min;OvmsMetricVector<float>;ms_v_bat_cell_vmin; [V];;Cell minimum voltages
 v.b.c.voltage.max;OvmsMetricVector<float>;ms_v_bat_cell_vmax; [V];;Cell maximum voltages
 v.b.c.voltage.dev.max;OvmsMetricVector<float>;ms_v_bat_cell_vdevmax; [V];;Cell maximum voltage deviation observed
 v.b.c.voltage.alert;OvmsMetricVector<short>;ms_v_bat_cell_valert;;;Cell voltage deviation alert level [0=normal, 1=warning, 2=alert]
-Bettery Cells Stats Temperature [°C];;;;;
+Battery Cells Stats Temperature [°C];;;;;
 v.b.c.temp;OvmsMetricVector<float>;ms_v_bat_cell_temp; [°C];;Cell temperatures
 v.b.c.temp.min;OvmsMetricVector<float>;ms_v_bat_cell_tmin; [°C];;Cell minimum temperatures
 v.b.c.temp.max;OvmsMetricVector<float>;ms_v_bat_cell_tmax; [°C];;Cell maximum temperatures
