@@ -1,12 +1,12 @@
 Metric Name;Metric Type;Metric variable Name;Unit;Example Value;Metric Description
 Module;;;;;
-m.version;OvmsMetricString;"ms_m_version;";;;
-m.hardware;OvmsMetricString;"ms_m_hardware;";;;
-m.serial;OvmsMetricString;"ms_m_serial;";;;
-m.tasks;OvmsMetricInt;"ms_m_tasks;";;;
-m.freeram;OvmsMetricInt;"ms_m_freeram;";;;
-m.monotonic;OvmsMetricInt;"ms_m_monotonic;";;;
-m.time.utc;OvmsMetricInt;"ms_m_timeutc;";;;
+m.version;OvmsMetricString;ms_m_version;;;
+m.hardware;OvmsMetricString;ms_m_hardware;;;
+m.serial;OvmsMetricString;ms_m_serial;;;
+m.tasks;OvmsMetricInt;ms_m_tasks;;;
+m.freeram;OvmsMetricInt;ms_m_freeram;;;
+m.monotonic;OvmsMetricInt;ms_m_monotonic;;;
+m.time.utc;OvmsMetricInt;ms_m_timeutc;;;
 Network;;;;;
 m.net.type;OvmsMetricString;ms_m_net_type;;;none, wifi, modem
 m.net.sq;OvmsMetricInt;ms_m_net_sq;[dbm];;Network signal quality 
@@ -15,8 +15,8 @@ m.net.wifi.network;OvmsMetricString;ms_m_net_wifi_network;;;Wifi network SSID
 m.net.wifi.sq;OvmsMetricFloat;ms_m_net_wifi_sq;[dbm];;Wifi network signal quality
 m.net.mdm.network;OvmsMetricString;ms_m_net_mdm_network;;;Modem network operator
 m.net.mdm.sq;OvmsMetricFloat;ms_m_net_mdm_sq;[dbm];;Modem network signal quality
-m.net.mdm.iccid;OvmsMetricString;"ms_m_net_mdm_iccid;";;;
-m.net.mdm.model;OvmsMetricString;"ms_m_net_mdm_model;";;;
+m.net.mdm.iccid;OvmsMetricString;ms_m_net_mdm_iccid;;;
+m.net.mdm.model;OvmsMetricString;ms_m_net_mdm_model;;;
 Server;;;;;
 s.v2.connected;OvmsMetricBool;ms_s_v2_connected;;;True = V2 server connected [1]
 s.v2.peers;OvmsMetricInt;ms_s_v2_peers;;;V2 clients connected [1]
@@ -102,56 +102,56 @@ Motor Status;;;;;
 v.m.rpm;OvmsMetricInt;ms_v_mot_rpm;[RPM];;Motor speed
 v.m.temp;OvmsMetricFloat;ms_v_mot_temp; [°C];;Motor temperature
 Doors Status;;;;;
-v.d.fl;OvmsMetricBool;"ms_v_door_fl;";;;Front Left Door Open/Close
-v.d.fr;OvmsMetricBool;"ms_v_door_fr;";;;Front Right Door Open/Close
-v.d.rl;OvmsMetricBool;"ms_v_door_rl;";;;Rear Left Door Open/Close
-v.d.rr;OvmsMetricBool;"ms_v_door_rr;";;;Rear Right Door Open/Close
-v.d.cp;OvmsMetricBool;"ms_v_door_chargeport;";;;Chargeport Open/Close
-v.d.hood;OvmsMetricBool;"ms_v_door_hood;";;;Hood Open/Close
-v.d.trunk;OvmsMetricBool;"ms_v_door_trunk;";;;Trunk Open/Close
+v.d.fl;OvmsMetricBool;ms_v_door_fl;;;Front Left Door Open/Close
+v.d.fr;OvmsMetricBool;ms_v_door_fr;;;Front Right Door Open/Close
+v.d.rl;OvmsMetricBool;ms_v_door_rl;;;Rear Left Door Open/Close
+v.d.rr;OvmsMetricBool;ms_v_door_rr;;;Rear Right Door Open/Close
+v.d.cp;OvmsMetricBool;ms_v_door_chargeport;;;Chargeport Open/Close
+v.d.hood;OvmsMetricBool;ms_v_door_hood;;;Hood Open/Close
+v.d.trunk;OvmsMetricBool;ms_v_door_trunk;;;Trunk Open/Close
 Vehicle Status;;;;;
 v.e.drivemode;OvmsMetricInt;ms_v_env_drivemode;;;Active drive profile number [1]
-v.e.gear;OvmsMetricInt;ms_v_env_gear;;;"Gear/direction; negative=reverse, 0=neutral [1]"
+v.e.gear;OvmsMetricInt;ms_v_env_gear;;;Gear/direction negative=reverse, 0=neutral [1]
 v.e.throttle;OvmsMetricFloat;ms_v_env_throttle; [%];;Drive pedal state
 v.e.footbrake;OvmsMetricFloat;ms_v_env_footbrake; [%];;Brake pedal state
 v.e.handbrake;OvmsMetricBool;ms_v_env_handbrake;;;Handbrake state
 v.e.regenbrake;OvmsMetricBool;ms_v_env_regenbrake;;;Regenerative braking state
 v.e.awake;OvmsMetricBool;ms_v_env_awake;;;Vehicle/bus awake (switched on)
 v.e.charging12v;OvmsMetricBool;ms_v_env_charging12v;;;12V battery charging
-v.e.cooling;OvmsMetricBool;"ms_v_env_cooling;";;;Cooling
-v.e.heating;OvmsMetricBool;"ms_v_env_heating;";;;Heating
+v.e.cooling;OvmsMetricBool;ms_v_env_cooling;;;Cooling
+v.e.heating;OvmsMetricBool;ms_v_env_heating;;;Heating
 v.e.hvac;OvmsMetricBool;ms_v_env_hvac;;;Climate control system state
 v.e.on;OvmsMetricBool;ms_v_env_on;;;"""Ignition"" state (drivable)"
 v.e.locked;OvmsMetricBool;ms_v_env_locked;;;Vehicle locked
 v.e.valet;OvmsMetricBool;ms_v_env_valet;;;Vehicle in valet mode
-v.e.headlights;OvmsMetricBool;"ms_v_env_headlights;";;;Head Lights
-v.e.alarm;OvmsMetricBool;"ms_v_env_alarm;";;;Alarm
-v.e.parktime;OvmsMetricInt;"ms_v_env_parktime;";;;Park Time
-v.e.drivetime;OvmsMetricInt;"ms_v_env_drivetime;";;;Drive Time
+v.e.headlights;OvmsMetricBool;ms_v_env_headlights;;;Head Lights
+v.e.alarm;OvmsMetricBool;ms_v_env_alarm;;;Alarm
+v.e.parktime;OvmsMetricInt;ms_v_env_parktime;;;Park Time
+v.e.drivetime;OvmsMetricInt;ms_v_env_drivetime;;;Drive Time
 v.e.c.login;OvmsMetricBool;ms_v_env_ctrl_login;;;Module logged in at ECU/controller
 v.e.c.config;OvmsMetricBool;ms_v_env_ctrl_config;;;ECU/controller in configuration state
 v.e.temp;OvmsMetricFloat;ms_v_env_temp;[°C];;Ambient temperature 
 v.e.cabintemp;OvmsMetricFloat;ms_v_env_cabintemp;[°C];;Cabin temperature 
 GPS Status;;;;;
-v.p.gpslock;OvmsMetricBool;"ms_v_pos_gpslock;";;;GPS lock status
-v.p.gpsmode;OvmsMetricString;ms_v_pos_gpsmode;;;"<GPS><GLONASS>; N/A/D/E (None/Autonomous/Differential/Estimated)"
+v.p.gpslock;OvmsMetricBool;ms_v_pos_gpslock;;;GPS lock status
+v.p.gpsmode;OvmsMetricString;ms_v_pos_gpsmode;;;<GPS><GLONASS> N/A/D/E (None/Autonomous/Differential/Estimated)
 v.p.gpshdop;OvmsMetricFloat;ms_v_pos_gpshdop;;;Horizontal dilution of precision (smaller=better)
-v.p.satcount;OvmsMetricInt;"ms_v_pos_satcount;";;;Number of Satellite
-v.p.latitude;OvmsMetricFloat;"ms_v_pos_latitude;";;;Latitude
-v.p.longitude;OvmsMetricFloat;"ms_v_pos_longitude;";;;Longitude
-v.p.direction;OvmsMetricFloat;"ms_v_pos_direction;";;;Direction
-v.p.altitude;OvmsMetricFloat;"ms_v_pos_altitude;";;;Altitude
+v.p.satcount;OvmsMetricInt;ms_v_pos_satcount;;;Number of Satellite
+v.p.latitude;OvmsMetricFloat;ms_v_pos_latitude;;;Latitude
+v.p.longitude;OvmsMetricFloat;ms_v_pos_longitude;;;Longitude
+v.p.direction;OvmsMetricFloat;ms_v_pos_direction;;;Direction
+v.p.altitude;OvmsMetricFloat;ms_v_pos_altitude;;;Altitude
 v.p.speed;OvmsMetricFloat;ms_v_pos_speed;[kph];;Vehicle speed 
 v.p.acceleration;OvmsMetricFloat;ms_v_pos_acceleration; [m/s²];;Vehicle acceleration
 v.p.gpsspeed;OvmsMetricFloat;ms_v_pos_gpsspeed; [kph];;GPS speed over ground
-v.p.odometer;OvmsMetricFloat;"ms_v_pos_odometer;";[Km];;Odometer
-v.p.trip;OvmsMetricFloat;"ms_v_pos_trip;";;;Trip
+v.p.odometer;OvmsMetricFloat;ms_v_pos_odometer;[Km];;Odometer
+v.p.trip;OvmsMetricFloat;ms_v_pos_trip;;;Trip
 Tire Pressure;;;;;
-v.tp.fl.t;OvmsMetricFloat;"ms_v_tpms_fl_t;";[°C];;Tire temperature Front Left
-v.tp.fr.t;OvmsMetricFloat;"ms_v_tpms_fr_t;";[°C];;Tire temperature Front Right
-v.tp.rr.t;OvmsMetricFloat;"ms_v_tpms_rr_t;";[°C];;Tire temperature Rear Right
-v.tp.rl.t;OvmsMetricFloat;"ms_v_tpms_rl_t;";[°C];;Tire temperature Rear Left
-v.tp.fl.p;OvmsMetricFloat;"ms_v_tpms_fl_p;";[psi];;Tire pressure Front Left
-v.tp.fr.p;OvmsMetricFloat;"ms_v_tpms_fr_p;";[psi];;Tire pressure Front Right
-v.tp.rr.p;OvmsMetricFloat;"ms_v_tpms_rr_p;";[psi];;Tire pressure Rear Right
-v.tp.rl.p;OvmsMetricFloat;"ms_v_tpms_rl_p;";[psi];;Tire pressure Rear Left
+v.tp.fl.t;OvmsMetricFloat;ms_v_tpms_fl_t;[°C];;Tire temperature Front Left
+v.tp.fr.t;OvmsMetricFloat;ms_v_tpms_fr_t;[°C];;Tire temperature Front Right
+v.tp.rr.t;OvmsMetricFloat;ms_v_tpms_rr_t;[°C];;Tire temperature Rear Right
+v.tp.rl.t;OvmsMetricFloat;ms_v_tpms_rl_t;[°C];;Tire temperature Rear Left
+v.tp.fl.p;OvmsMetricFloat;ms_v_tpms_fl_p;[psi];;Tire pressure Front Left
+v.tp.fr.p;OvmsMetricFloat;ms_v_tpms_fr_p;[psi];;Tire pressure Front Right
+v.tp.rr.p;OvmsMetricFloat;ms_v_tpms_rr_p;[psi];;Tire pressure Rear Right
+v.tp.rl.p;OvmsMetricFloat;ms_v_tpms_rl_p;[psi];;Tire pressure Rear Left
