@@ -54,7 +54,7 @@ void vehicle_vx1_power(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int 
   OvmsVehicleVectrixVX1* vx1 = (OvmsVehicleVectrixVX1*) MyVehicleFactory.ActiveVehicle();
   string type = StdMetrics.ms_v_type->AsString();
 
-  if (!vx1 || type != "RT")
+  if (!vx1 || type != "VV")
   {
     writer->puts("Error: VX1 vehicle module not selected");
     return;

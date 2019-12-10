@@ -45,6 +45,7 @@
 #include "vv_types.h"
 #include "vv_battmon.h"
 #include "vv_pwrmon.h"
+//#include "vv_sevcon_mon.h"
 
 using namespace std;
 
@@ -75,13 +76,19 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
 
   protected:
     // Car + charge status from CAN:
-    #define CAN_STATUS_FOOTBRAKE    0x01        //  bit 0 = 0x01: 1 = Footbrake
+    #define CAN_STATUS_BRAKE_R      0x01        //  bit 0 = 0x01: 1 = Front/right brake presse
+    #define CAN_STATUS_BRAKE_L      0x04        //  bit 2 = 0x04: 1 = Rear/Left brake presse
+    #define CAN_STATUS_KILLSWITCHON 0x10        //  bit 4 = 0x10: 1 = Kill Switch On (0 = Off)
+    #define CAN_STATUS_SEATTRUNK    0x20        //  bit 5 = 0x20: 1 = Seat Trunk Open (O = closed)
+    #define CAN_STATUS_SIDESTAND    0x40        //  bit 6 = 0x40: 1 = Side Stand down
     #define CAN_STATUS_MODE_D       0x02        //  bit 1 = 0x02: 1 = Forward mode "D"
-    #define CAN_STATUS_MODE_R       0x04        //  bit 2 = 0x04: 1 = Reverse mode "R"
+    #define CAN_STATUS_MODE_R       0xC0        //  bit 7&6 = 0xC0: 1 = Reverse Indicator "R"
+    #define CAN_STATUS_REGEN_L      0x01        //  bit 0 = 0x01: 1 = Brake light when regen
     #define CAN_STATUS_MODE         0x06        //  mask
-    #define CAN_STATUS_GO           0x08        //  bit 3 = 0x08: 1 = "GO" = Motor ON (Ignition)
-    #define CAN_STATUS_KEYON        0x10        //  bit 4 = 0x10: 1 = Car awake (key turned)
-    #define CAN_STATUS_CHARGING     0x20        //  bit 5 = 0x20: 1 = Charging
+    #define CAN_STATUS_READY        0x0C        //  bit 1&0 = 0x03: 1 = "Ready" light = Kill Switch ON (Ignition)
+    #define CAN_STATUS_GO           0x0C        //  bit 3&2 = 0x0C: 1 = "GO" light = Motor ON (Ignition)
+    #define CAN_STATUS_KEYON        0x30        //  bit 5&4 = 0x30: 1 = Power Enable
+    #define CAN_STATUS_CHARGING     0x1F        //  byte 7 = 0x1F: 0 != Charging
     #define CAN_STATUS_OFFLINE      0x40        //  bit 6 = 0x40: 1 = Switch-ON/-OFF phase / 0 = normal operation
     #define CAN_STATUS_ONLINE       0x80        //  bit 7 = 0x80: 1 = CAN-Bus online (test flag to detect offline)
     unsigned char vx1_status = CAN_STATUS_OFFLINE;
@@ -99,7 +106,7 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
     int vx1_soh = 0;                              // BMS SOH [%]
 
     unsigned int vx1_last_soc = 0;                // sufficient charge SOC threshold helper
-    unsigned int twizy_last_idealrange = 0;         // sufficient charge range threshold helper
+    unsigned int vx1_last_idealrange = 0;         // sufficient charge range threshold helper
 
     unsigned int vx1_soc = 5000;                  // detailed SOC (1/100 %)
     unsigned int vx1_soc_min = 10000;             // min SOC reached during last discharge
@@ -360,12 +367,6 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
       //  has been reached, after processing it will reset state to _START.
       volatile uint8_t vx1_batt_sensors_state;
       #define BATT_SENSORS_START     0  // start group fetch
-      #define BATT_SENSORS_GOT556    3  // mask: lowest 2 bits (state)
-      #define BATT_SENSORS_GOT554    4  // bit
-      #define BATT_SENSORS_GOT557    8  // bit
-      #define BATT_SENSORS_GOT55E   16  // bit
-      #define BATT_SENSORS_GOT55F   32  // bit
-      #define BATT_SENSORS_GOT700   64  // bit (only used for 16 cell batteries)
       #define BATT_SENSORS_GOTALL   ((batt_cell_count==14) ? 61 : 125)  // threshold: data complete
       #define BATT_SENSORS_READY    ((batt_cell_count==14) ? 63 : 127)  // value: group complete
       SemaphoreHandle_t m_batt_sensors = 0;
