@@ -8,6 +8,7 @@
 ;    (C) 2011       Michael Stegen / Stegen Electronics
 ;    (C) 2011-2017  Mark Webb-Johnson
 ;    (C) 2011        Sonny Chen @ EPRO/DX
+;    (C) 2019       Michael Balzer
 ;
 ; Permission is hereby granted, free of charge, to any person obtaining a copy
 ; of this software and associated documentation files (the "Software"), to deal
@@ -26,48 +27,51 @@
 ; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 ; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 ; THE SOFTWARE.
-;
-; Portions of this are based on the work of Thomas Barth, and licensed
-; under MIT license.
-; Copyright (c) 2017, Thomas Barth, barth-dev.de
-; https://github.com/ThomasBarth/ESP32-CAN-Driver
 */
 
-#ifndef __ESP32CAN_H__
-#define __ESP32CAN_H__
+#ifndef __OVMS_TIMER_H__
+#define __OVMS_TIMER_H__
 
-#include <stdint.h>
-#include "can.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
-#include "freertos/semphr.h"
-#include "freertos/task.h"
-#include "driver/gpio.h"
-#include "esp_intr.h"
-#include "soc/dport_reg.h"
-#include <math.h>
+#include "freertos/timers.h"
+#include <functional>
 
-class esp32can : public canbus
+class OvmsTimer
   {
   public:
-    esp32can(const char* name, int txpin, int rxpin);
-    ~esp32can();
+    OvmsTimer(const char* name=NULL, int maxwait_ms=-1, bool autoreload=false);
+    ~OvmsTimer();
+
+  protected:
+    static void Callback(TimerHandle_t xTimer);
 
   public:
-    esp_err_t Start(CAN_mode_t mode, CAN_speed_t speed);
-    esp_err_t Stop();
-    void InitController();
+    bool Set(int time_ms, std::function<void()> callback);
+    bool Start(int time_ms, std::function<void()> callback);
+    bool Start();
+    bool Stop();
+    bool IsActive();
+    bool Reset();
 
-  public:
-    esp_err_t Write(const CAN_frame_t* p_frame, TickType_t maxqueuewait=0);
-    void TxCallback(CAN_frame_t* p_frame, bool success);
-
-  public:
-    void SetPowerMode(PowerMode powermode);
-
-  public:
-    gpio_num_t m_txpin;               // TX pin
-    gpio_num_t m_rxpin;               // RX pin
+  protected:
+    const char* m_name;
+    TickType_t m_maxwait;
+    TimerHandle_t m_timer;
+    std::function<void()> m_callback;
   };
 
-#endif //#ifndef __ESP32CAN_H__
+class OvmsTimeout : public OvmsTimer
+  {
+  public:
+    OvmsTimeout(const char* name=NULL, int maxwait_ms=-1)
+      : OvmsTimer(name, maxwait_ms, false) {}
+  };
+
+class OvmsInterval : public OvmsTimer
+  {
+  public:
+    OvmsInterval(const char* name=NULL, int maxwait_ms=-1)
+      : OvmsTimer(name, maxwait_ms, true) {}
+  };
+
+#endif //__OVMS_TIMER_H__

@@ -1,6 +1,37 @@
 Open Vehicle Monitor System v3 - Change log
 
 ????-??-?? ???  ???????  OTA release
+
+2019-12-09 MWJ  3.2.007  OTA release
+- Minor change to web sheel (to decode line breaks in log messages)
+- Javascript: Conduct garbage collection per minute, to reduce memory consumption
+
+2019-11-30 MWJ  3.2.006  OTA release
+- 12V Monitor: web UI calibration aid & configuration
+- EGPIO/MAX7317: port input monitoring, metrics, events, documentation
+  New commands:
+    egpio status                    Show input, output & monitoring port status
+    egpio monitor status            Show input monitoring status
+    egpio monitor <on|off> [ports]  Enable/disable port monitoring
+  New configs:
+    [auto] egpio                    yes = Autostart port monitoring (default no)
+    [egpio] monitor.ports           Default ports to monitor (space separated)
+    [egpio] monitor.interval        Polling interval in ms (default 50)
+  New metrics:
+    m.egpio.input                   EGPIO input port state (ports 0…9, present=high)
+    m.egpio.monitor                 EGPIO input monitoring ports
+    m.egpio.output                  EGPIO output port state
+  New events:
+    egpio.input.<port>.<state>      EGPIO input port change (port=0…9, state=high/low)
+    egpio.output.<port>.<state>     EGPIO output port change (port=0…9, state=high/low)
+- Scripting API: OvmsMetrics.AsJSON() added
+- Renault Zoe: basic Metrics and charging status added, trip notify, web config for battery capacity
+- Logging: file logging moved to dedicated task (improved performance)
+  New commands:
+    log status      Show logging status
+    log open        (Re-)open currently set log file after "log close"
+- Web UI: log monitoring via web shell
+  Note: command "log monitor" doesn't apply, use the checkbox to disable.
 - Factory reset from web/remote shell by "module factory reset -noconfirm"
 - SWCAN: Support for add-on SWCAN module (see https://github.com/mjuhanne/OVMS-SWCAN)
     Add new "can4" bus (if compiled in)

@@ -805,6 +805,7 @@ void OvmsServerV2::Disconnect()
   m_buffer->EmptyAll();
   m_connretry = 0;
   StandardMetrics.ms_s_v2_connected->SetValue(false);
+  StandardMetrics.ms_s_v2_peers->SetValue(0);
   }
 
 void OvmsServerV2::Reconnect(int connretry)
@@ -818,6 +819,7 @@ void OvmsServerV2::Reconnect(int connretry)
   m_buffer->EmptyAll();
   m_connretry = connretry;
   StandardMetrics.ms_s_v2_connected->SetValue(false);
+  StandardMetrics.ms_s_v2_peers->SetValue(0);
   }
 
 size_t OvmsServerV2::IncomingData(uint8_t* data, size_t len)
@@ -1749,6 +1751,11 @@ OvmsServerV2::OvmsServerV2(const char* name)
     {
     MyOvmsServerV2Reader = MyNotify.RegisterReader("ovmsv2", COMMAND_RESULT_NORMAL, std::bind(OvmsServerV2ReaderCallback, _1, _2),
                                                    true, std::bind(OvmsServerV2ReaderFilterCallback, _1, _2));
+    }
+  else
+    {
+    MyNotify.RegisterReader(MyOvmsServerV2Reader, "ovmsv2", COMMAND_RESULT_NORMAL, std::bind(OvmsServerV2ReaderCallback, _1, _2),
+                            true, std::bind(OvmsServerV2ReaderFilterCallback, _1, _2));
     }
 
   // init event listener:

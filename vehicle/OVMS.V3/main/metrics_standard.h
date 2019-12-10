@@ -58,6 +58,12 @@
 #define MS_N_WIFI_NETWORK           "m.net.wifi.network"
 #define MS_N_WIFI_SQ                "m.net.wifi.sq"
 
+#ifdef CONFIG_OVMS_COMP_MAX7317
+#define MS_M_EGPIO_INPUT            "m.egpio.input"
+#define MS_M_EGPIO_MONITOR          "m.egpio.monitor"
+#define MS_M_EGPIO_OUTPUT           "m.egpio.output"
+#endif //CONFIG_OVMS_COMP_MAX7317
+
 #define MS_S_V2_CONNECTED           "s.v2.connected"
 #define MS_S_V2_PEERS               "s.v2.peers"
 
@@ -168,6 +174,10 @@
 #define MS_V_ENV_CTRL_CONFIG        "v.e.c.config"
 #define MS_V_ENV_TEMP               "v.e.temp"
 #define MS_V_ENV_CABINTEMP          "v.e.cabintemp"
+#define MS_V_ENV_CABINFAN           "v.e.cabinfan"
+#define MS_V_ENV_CABINSETPOINT      "v.e.cabinsetpoint"
+#define MS_V_ENV_CABININTAKE        "v.e.cabinintake"
+#define MS_V_ENV_CABINVENT          "v.e.cabinvent"
 
 #define MS_V_POS_GPSLOCK            "v.p.gpslock"
 #define MS_V_POS_GPSSTALE           "v.p.gpsstale"
@@ -217,6 +227,12 @@ class MetricsStandard
     OvmsMetricFloat*  ms_m_net_mdm_sq;              // Modem network signal quality [dbm]
     OvmsMetricString* ms_m_net_mdm_iccid;
     OvmsMetricString* ms_m_net_mdm_model;
+
+#ifdef CONFIG_OVMS_COMP_MAX7317
+    OvmsMetricBitset<10,0>* ms_m_egpio_input;       // EGPIO (MAX7317) input port state (ports 0…9)
+    OvmsMetricBitset<10,0>* ms_m_egpio_output;      // EGPIO (MAX7317) output port state
+    OvmsMetricBitset<10,0>* ms_m_egpio_monitor;     // EGPIO (MAX7317) input monitoring state
+#endif //CONFIG_OVMS_COMP_MAX7317
 
     OvmsMetricBool*   ms_s_v2_connected;            // True = V2 server connected [1]
     OvmsMetricInt*    ms_s_v2_peers;                // V2 clients connected [1]
@@ -333,6 +349,10 @@ class MetricsStandard
     OvmsMetricBool*   ms_v_env_ctrl_config;         // ECU/controller in configuration state
     OvmsMetricFloat*  ms_v_env_temp;                // Ambient temperature [°C]
     OvmsMetricFloat*  ms_v_env_cabintemp;           // Cabin temperature [°C]
+    OvmsMetricInt*    ms_v_env_cabinfan;            // Cabin FAN [%]
+    OvmsMetricFloat*  ms_v_env_cabinsetpoint;       // Cabin setpoint temperature [°C]
+    OvmsMetricString* ms_v_env_cabinintake;         // Cabin intake type (fresh, recirc, etc)
+    OvmsMetricString* ms_v_env_cabinvent;           // Cabin vent type (comma-separated list of feet, face, screen, etc)
 
     OvmsMetricBool*   ms_v_pos_gpslock;
     OvmsMetricString* ms_v_pos_gpsmode;             // <GPS><GLONASS>; N/A/D/E (None/Autonomous/Differential/Estimated)
