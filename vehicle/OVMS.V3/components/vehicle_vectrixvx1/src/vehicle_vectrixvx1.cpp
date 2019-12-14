@@ -51,6 +51,19 @@ OvmsVehicleVectrixVX1Init::OvmsVehicleVectrixVX1Init()
   MyVehicleFactory.RegisterVehicle<OvmsVehicleVectrixVX1>("VV","Vectrix VX1");
   }
 
+  OvmsVehicleVectrixVX1* OvmsVehicleVectrixVX1::GetInstance(OvmsWriter* writer /*=NULL*/)
+  {
+    OvmsVehicleVectrixVX1* vx1 = (OvmsVehicleVectrixVX1*) MyVehicleFactory.ActiveVehicle();
+    string type = StdMetrics.ms_v_type->AsString();
+    if (!vx1 || type != "RT") {
+      if (writer)
+        writer->puts("Error: Vectrix vehicle module not selected");
+      return NULL;
+    }
+    return vx1;
+  }
+
+
 OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
   {
   ESP_LOGI(TAG, "Vectrix VX1 vehicle module");
@@ -98,6 +111,11 @@ OvmsVehicleVectrixVX1::~OvmsVehicleVectrixVX1()
   #ifdef CONFIG_OVMS_COMP_WEBSERVER
     WebDeInit();
   #endif
+  }
+
+  const char* OvmsVehicleVectrixVX1::VehicleShortName()
+  {
+    return "vx1";
   }
 
 void OvmsVehicleVectrixVX1::Notify12vCritical()
