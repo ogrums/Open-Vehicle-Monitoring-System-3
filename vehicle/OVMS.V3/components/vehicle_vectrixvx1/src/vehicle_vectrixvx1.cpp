@@ -86,6 +86,9 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
     WebInit();
   #endif
 
+  // init SEVCON connection:
+  m_sevcon = new SevconClient(this);
+
   }
 
 OvmsVehicleVectrixVX1::~OvmsVehicleVectrixVX1()

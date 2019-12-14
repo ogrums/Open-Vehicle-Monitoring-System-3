@@ -23,8 +23,8 @@
  * THE SOFTWARE.
  */
 
-// #include "ovms_log.h"
-// static const char *TAG = "v-twizy";
+#include "ovms_log.h"
+static const char *TAG = "v-vx1";
 
 #include <stdio.h>
 #include <math.h>
@@ -36,8 +36,38 @@
 #include "ovms_notify.h"
 
 #include "vehicle_vectrixvx1.h"
-//#include "vv_sevcon.h"
+#include "vv_sevcon_mon.h"
 
+SevconClient::SevconClient(OvmsVehicleVectrixVX1* vx1)
+  //: m_sync(vx1->m_can1), m_async(vx1->m_can1, 50)
+{
+  ESP_LOGI(TAG, "sevcon subsystem init");
+
+  m_vx1 = vx1;
+  m_sevcon_type = 0;
+
+  InitMonitoring();
+
+  OvmsCommand *cmd_mon = m_vx1->cmd_xvv->RegisterCommand("mon", "SEVCON monitoring");
+
+  cmd_mon->RegisterCommand("start", "Start monitoring", shell_mon_start, "[<filename>]", 0, 1);
+  cmd_mon->RegisterCommand("stop", "Stop monitoring", shell_mon_stop);
+  cmd_mon->RegisterCommand("reset", "Reset monitoring", shell_mon_reset);
+
+}
+
+SevconClient::~SevconClient()
+{
+}
+
+//SevconClient* SevconClient::GetInstance(OvmsWriter* writer /*=NULL*/)
+//{
+//  OvmsVehicleVectrixVX1* vx1 = OvmsVehicleVectrixVX1::GetInstance(writer);
+//  if (vx1)
+//    return vx1->GetSevconClient();
+//  else
+//    return NULL;
+//}
 
 /**
  * Shell command:
@@ -127,6 +157,14 @@ void SevconClient::shell_mon_reset(int verbosity, OvmsWriter* writer, OvmsComman
   writer->puts("Reset done.");
 }
 
+SevconClient* SevconClient::GetInstance(OvmsWriter* writer /*=NULL*/)
+{
+  OvmsVehicleVectrixVX1* vx1 = OvmsVehicleVectrixVX1::GetInstance(writer);
+  if (vx1)
+    return vx1->GetSevconClient();
+  else
+    return NULL;
+}
 
 /**
  * Reset speed maps
@@ -197,11 +235,11 @@ void SevconClient::QueryMonitoringData()
     return;
 
   // 4600.0c Actual AC Motor Current [A]
-  SendRead(0x4600, 0x0c, &m_mon.mot_current_raw);
+  //SendRead(0x4600, 0x0c, &m_mon.mot_current_raw);
   // 4600.0d Actual AC Motor Voltage [1/16 V]
-  SendRead(0x4600, 0x0d, &m_mon.mot_voltage_raw);
+  //SendRead(0x4600, 0x0d, &m_mon.mot_voltage_raw);
   // 4602.11 Battery Voltage [1/16 V]
-  SendRead(0x4602, 0x11, &m_mon.bat_voltage_raw);
+  //SendRead(0x4602, 0x11, &m_mon.bat_voltage_raw);
 
 }
 
@@ -211,6 +249,7 @@ void SevconClient::QueryMonitoringData()
  *  - called by SevconAsyncTask
  *  - running in m_asynctask context
  */
+
 void SevconClient::ProcessMonitoringData(CANopenJob &job)
 {
   if (job.type != COJT_ReadSDO || job.result != COR_OK)
@@ -238,6 +277,7 @@ void SevconClient::ProcessMonitoringData(CANopenJob &job)
     default:
       break;
   }
+
 
   if (complete) {
 
@@ -277,9 +317,8 @@ void SevconClient::ProcessMonitoringData(CANopenJob &job)
 
           esp_log_timestamp(),
           spd,
-          StdMetrics.ms_v_mot_rpm->AsInt(),
           StdMetrics.ms_v_env_throttle->AsFloat(),
-          m_twizy->twizy_kickdown_hold,
+          m_vx1->vx1_kickdown_hold,
           StdMetrics.ms_v_env_footbrake->AsFloat(),
 
           m_mon.bat_voltage->AsFloat(),
@@ -288,7 +327,7 @@ void SevconClient::ProcessMonitoringData(CANopenJob &job)
 
           m_mon.mot_voltage->AsFloat(),
           m_mon.mot_current->AsFloat(),
-          m_mon.mot_power->AsFloat(),
+          m_mon.mot_power->AsFloat());
       }
     }
   }

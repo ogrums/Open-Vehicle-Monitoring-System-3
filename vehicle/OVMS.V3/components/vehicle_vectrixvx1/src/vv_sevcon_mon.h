@@ -28,30 +28,14 @@
 
 #include "ovms_metrics.h"
 #include "ovms_mutex.h"
+#include "canopen.h"
 #include "vv_types.h"
+
+#include "vehicle_vectrixvx1.h"
 
 #define SCMON_MAX_KPH         120
 
 using namespace std;
-
-#if 0
-template <typename T> struct minmax {
-  T min, max;
-  minmax() {
-    reset();
-  }
-  void reset() {
-    min = std::numeric_limits<T>::max();
-    max = std::numeric_limits<T>::min();
-  }
-  void addval(T val) {
-    if (val < min)
-      min = val;
-    if (val > max)
-      max = val;
-  }
-};
-#endif
 
 struct sc_mondata
 {
@@ -95,5 +79,92 @@ struct sc_mondata
 
   void reset_speedmaps();
 };
+
+
+//
+// SevconClient: main class
+//
+class OvmsVehicleVectrixVX1;
+
+class SevconClient : public InternalRamAllocated
+{
+
+  friend class OvmsVehicleVectrixVX1;
+  public:
+    SevconClient(OvmsVehicleVectrixVX1* vx1);
+    ~SevconClient();
+    static SevconClient* GetInstance(OvmsWriter* writer=NULL);
+
+  public:
+    // Monitoring:
+    void InitMonitoring();
+    void QueryMonitoringData();
+    void ProcessMonitoringData(CANopenJob &job);
+    void SendMonitoringData();
+
+  public:
+    // Shell commands:
+    //static void shell_cfg_mode(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_read(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_write(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+
+    //static void shell_cfg_set(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_get(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_info(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_save(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_load(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+
+    //static void shell_cfg_drive(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_recup(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_ramps(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_ramplimits(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_smooth(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+
+    //static void shell_cfg_power(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_speed(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_tsmap(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_brakelight(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+
+    //static void shell_cfg_querylogs(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    //static void shell_cfg_clearlogs(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+
+    static void shell_mon_start(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    static void shell_mon_stop(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+    static void shell_mon_reset(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv);
+
+  private:
+    OvmsVehicleVectrixVX1*  m_vx1;
+    //CANopenAsyncClient        m_async;
+    //TaskHandle_t              m_asynctask = 0;
+    sc_mondata                m_mon = {};
+    bool                      m_mon_enable = false;
+    volatile FILE*            m_mon_file = NULL;
+    OvmsMutex                 m_mon_mutex;
+    uint32_t                  m_sevcon_type;
+
+};
+
+
+
+#if 0
+template <typename T> struct minmax {
+  T min, max;
+  minmax() {
+    reset();
+  }
+  void reset() {
+    min = std::numeric_limits<T>::max();
+    max = std::numeric_limits<T>::min();
+  }
+  void addval(T val) {
+    if (val < min)
+      min = val;
+    if (val > max)
+      max = val;
+  }
+};
+#endif
+
+
 
 #endif // __vv_sevcon_mon_h__

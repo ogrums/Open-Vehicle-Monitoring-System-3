@@ -45,15 +45,29 @@
 #include "vv_types.h"
 #include "vv_battmon.h"
 #include "vv_pwrmon.h"
-//#include "vv_sevcon_mon.h"
+#include "vv_sevcon_mon.h"
 
 using namespace std;
 
 class OvmsVehicleVectrixVX1: public OvmsVehicle
   {
+  friend class SevconClient;
   public:
     OvmsVehicleVectrixVX1();
     ~OvmsVehicleVectrixVX1();
+    static OvmsVehicleVectrixVX1* GetInstance(OvmsWriter* writer=NULL);
+    virtual const char* VehicleShortName();
+
+  // --------------------------------------------------------------------------
+  // SEVCON subsystem
+  //  - implementation: rt_sevcon_mon.(h,cpp)
+  //
+
+    public:
+      SevconClient* GetSevconClient() { return m_sevcon; }
+
+    protected:
+      SevconClient *m_sevcon = NULL;
 
   // --------------------------------------------------------------------------
   // Framework integration
