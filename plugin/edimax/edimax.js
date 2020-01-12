@@ -1,7 +1,7 @@
 /**
  * Module plugin:
  *  Smart Plug control for Edimax models SP-1101W, SP-2101W et al
- *  Version 1.0 by Michael Balzer <dexter@dexters-web.de>
+ *  Version 2.0 by Michael Balzer <dexter@dexters-web.de>
  *  Note: may need digest auth support to work with newer Edimax firmware (untested)
  * 
  * Installation:
@@ -30,6 +30,10 @@ var cfg = {
   location: "",           // optional: restrict auto switch to this location
   soc_on: "",             // optional: switch on if SOC at/below
   soc_off: "",            // optional: switch off if SOC at/above
+  chg_stop_off: "",       // optional: yes = switch off on vehicle.charge.stop
+  aux_volt_on: "",        // optional: switch on if 12V level at/below
+  aux_volt_off: "",       // optional: switch off if 12V level at/above
+  aux_stop_off: "",       // optional: yes = switch off on vehicle.charge.12v.stop
 };
 
 var state = {
@@ -52,11 +56,11 @@ function processResult(tag) {
 
 // Get power state:
 function getPowerState() {
-  if (cfg.location != "" && !OvmsLocation.Status(cfg.location)) {
+  if (cfg.location && !OvmsLocation.Status(cfg.location)) {
     print("Edimax: vehicle not at plug location (" + cfg.location + ")");
     return;
   }
-  HTTP.request({
+  HTTP.Request({
     url: "http://" + cfg.user + ":" + cfg.pass + "@" + cfg.ip + ":10000/smartplug.cgi",
     headers: [{ "Content-Type": "text/xml" }],
     post: '<?xml version="1.0" encoding="utf-8"?>'
@@ -84,13 +88,13 @@ function getPowerState() {
 
 // Set power state:
 function setPowerState(onoff) {
-  if (cfg.location != "" && !OvmsLocation.Status(cfg.location)) {
+  if (cfg.location && !OvmsLocation.Status(cfg.location)) {
     print("Edimax: vehicle not at plug location (" + cfg.location + ")");
     return;
   }
   if (onoff != "on" && onoff != "off")
     onoff = onoff ? "on" : "off";
-  HTTP.request({
+  HTTP.Request({
     url: "http://" + cfg.user + ":" + cfg.pass + "@" + cfg.ip + ":10000/smartplug.cgi",
     headers: [{ "Content-Type": "text/xml" }],
     post: '<?xml version="1.0" encoding="utf-8"?>'
@@ -126,41 +130,78 @@ function printInfo() {
 
 // Read & process config:
 function readConfig() {
-  Object.assign(cfg, OvmsConfig.GetValues("usr", "edimax."));
+  // check for config update:
+  var upd = Object.assign({}, cfg, OvmsConfig.GetValues("usr", "edimax."));
+  if (Duktape.enc('jx', upd) == Duktape.enc('jx', cfg))
+    return;
+  cfg = upd;
+  // process:
   state.error = "";
-  state.auto = (cfg.ip != "" && (cfg.soc_on != "" || cfg.soc_off != ""));
+  state.auto = (cfg.ip && (cfg.soc_on || cfg.soc_off || cfg.aux_volt_on || cfg.aux_volt_off)) != "";
   if (state.auto && !state.ticker) {
     state.ticker = PubSub.subscribe(tickerEvent, ticker);
   } else if (!state.auto && state.ticker) {
     PubSub.unsubscribe(state.ticker);
     state.ticker = false;
   }
-  if (cfg.ip && (cfg.location == "" || OvmsLocation.Status(cfg.location))) {
+  if (cfg.ip && (!cfg.location || OvmsLocation.Status(cfg.location))) {
     getPowerState();
   }
 }
 
 // Ticker:
 function ticker() {
-  if (cfg.location != "" && !OvmsLocation.Status(cfg.location))
+  if (cfg.location && !OvmsLocation.Status(cfg.location))
     return;
   var soc = OvmsMetrics.AsFloat("v.b.soc");
-  if (cfg.soc_on != "" && soc <= Number(cfg.soc_on) && state.power != "on") {
+  var aux_volt = OvmsMetrics.AsFloat("v.b.12v.voltage");
+  // check SOC:
+  if (cfg.soc_on && soc <= Number(cfg.soc_on) && state.power != "on") {
     print("Edimax ticker: low SOC => switching on");
     setPowerState("on");
   }
-  else if (cfg.soc_off != "" && soc >= Number(cfg.soc_off) && state.power != "off") {
+  else if (cfg.soc_off && soc >= Number(cfg.soc_off) && state.power != "off") {
     print("Edimax ticker: sufficient SOC => switching off");
     setPowerState("off");
   }
+  // check 12V level:
+  else if (cfg.aux_volt_on && aux_volt <= Number(cfg.aux_volt_on) && state.power != "on") {
+    print("Edimax ticker: low 12V level => switching on");
+    setPowerState("on");
+  }
+  else if (cfg.aux_volt_off && aux_volt >= Number(cfg.aux_volt_off) && state.power != "off") {
+    print("Edimax ticker: sufficient 12V level => switching off");
+    setPowerState("off");
+  }
+  // get power state if unknown:
   else if (state.power == "") {
     getPowerState();
+  }
+}
+
+// Event handler:
+function handleEvent(event) {
+  if (cfg.location && !OvmsLocation.Status(cfg.location))
+    return;
+  if (event == "vehicle.charge.stop") {
+    if (cfg.chg_stop_off == "yes" && state.power == "on") {
+      print("Edimax event: main charge stop => switching off");
+      setPowerState("off");
+    }
+  }
+  else if (event == "vehicle.charge.12v.stop") {
+    if (cfg.aux_stop_off == "yes" && state.power == "on") {
+      print("Edimax event: 12V charge stop => switching off");
+      setPowerState("off");
+    }
   }
 }
 
 // Init:
 readConfig();
 PubSub.subscribe("config.changed", readConfig);
+PubSub.subscribe("vehicle.charge.stop", handleEvent);
+PubSub.subscribe("vehicle.charge.12v.stop", handleEvent);
 
 // API exports:
 exports.get = getPowerState;
