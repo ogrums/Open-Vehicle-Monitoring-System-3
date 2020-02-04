@@ -120,7 +120,8 @@ void simcom::Task()
               if (buffered_size>sizeof(data)) buffered_size = sizeof(data);
               int len = uart_read_bytes(m_uartnum, (uint8_t*)data, buffered_size, 100 / portTICK_RATE_MS);
               m_buffer.Push(data,len);
-              //MyCommandApp.HexDump(TAG, "rx", (const char*)data, len);
+              if (m_state1 == NetDeepSleep)
+                { MyCommandApp.HexDump(TAG, "rx", (const char*)data, len); }
               uart_get_buffered_data_len(m_uartnum, &buffered_size);
               SimcomState1 newstate = State1Activity();
               if ((newstate != m_state1)&&(newstate != None)) SetState1(newstate);
@@ -671,7 +672,7 @@ simcom::SimcomState1 simcom::State1Ticker1()
       switch (m_state1_ticker)
         {
         case 10:
-          tx("AT+CPIN?;+CREG=1;+CTZU=1;+CTZR=1;+CLIP=1;+CMGF=1;+CNMI=1,2,0,0,0;+CSDH=1;+CMEE=2;+CSQ;+AUTOCSQ=1,1;E0\r\n");
+          tx("AT+CPIN?;+CREG=1;+CTZU=1;+CTZR=1;+CLIP=1;+CMGF=1;+CNMI=1,2,0,0,0;+CSDH=1;+CMEE=2;+CSQ;+AUTOCSQ=1,1;E0;S0=0\r\n");
           break;
         case 12:
           tx("AT+CGMR;+ICCID\r\n");
