@@ -71,176 +71,6 @@ void OvmsVehicleVectrixVX1::WebDeInit()
 }
 
 /**
- * WebCfgFeatures: configure general parameters (URL /xnl/config)
- */
-/**
-void OvmsVehicleVectrixVX1::WebCfgFeatures(PageEntry_t& p, PageContext_t& c)
-{
-  std::string error;
-  bool canwrite;
-  std::string modelyear;
-  std::string maxgids, maxgids_old;
-
-  if (c.method == "POST") {
-    // process form submission:
-    modelyear = c.getvar("modelyear");
-    maxgids   = c.getvar("maxgids");
-    canwrite = (c.getvar("canwrite") == "yes");
-
-    // check:
-    if (!modelyear.empty()) {
-      int n = atoi(modelyear.c_str());
-      if (n < 2011)
-        error += "<li data-input=\"modelyear\">Model year must be &ge; 2011</li>";
-    }
-
-    if (error == "") {
-      // Get old value before we overwrite
-      maxgids_old = MyConfig.GetParamValue("xnl", "maxGids", STR(GEN_1_NEW_CAR_GIDS));
-
-      // store:
-      MyConfig.SetParamValue("xnl", "modelyear", modelyear);
-      MyConfig.SetParamValue("xnl", "maxGids", maxgids);
-      MyConfig.SetParamValueBool("xnl", "canwrite", canwrite);
-
-      // Write derived values
-      if (maxgids != maxgids_old) {
-          if (maxgids == STR(GEN_1_NEW_CAR_GIDS)) {
-              MyConfig.SetParamValueInt("xnl", "newCarAh", GEN_1_NEW_CAR_AH);
-          }
-          else if (maxgids == STR(GEN_1_30_NEW_CAR_GIDS)) {
-              MyConfig.SetParamValueInt("xnl", "newCarAh", GEN_1_30_NEW_CAR_AH);
-          }
-      }
-
-      c.head(200);
-      c.alert("success", "<p class=\"lead\">Nissan Leaf feature configuration saved.</p>");
-      MyWebServer.OutputHome(p, c);
-      c.done();
-      return;
-    }
-
-    // output error, return to form:
-    error = "<p class=\"lead\">Error!</p><ul class=\"errorlist\">" + error + "</ul>";
-    c.head(400);
-    c.alert("danger", error.c_str());
-  }
-  else {
-    // read configuration:
-    modelyear = MyConfig.GetParamValue("xnl", "modelyear", STR(DEFAULT_MODEL_YEAR));
-    maxgids   = MyConfig.GetParamValue("xnl", "maxGids", STR(GEN_1_NEW_CAR_GIDS));
-    canwrite  = MyConfig.GetParamValueBool("xnl", "canwrite", false);
-
-    c.head(200);
-  }
-
-  // generate form:
-
-  c.panel_start("primary", "Nissan Leaf feature configuration");
-  c.form_start(p.uri);
-
-  c.fieldset_start("General");
-  c.input("number", "Model year", "modelyear", modelyear.c_str(), "Default: " STR(DEFAULT_MODEL_YEAR), NULL,
-    "min=\"2011\" step=\"1\"", "");
-
-  c.input_radio_start("Battery capacity", "maxgids");
-  c.input_radio_option("maxgids", "24 kwh", STR(GEN_1_NEW_CAR_GIDS),    maxgids == STR(GEN_1_NEW_CAR_GIDS));
-  c.input_radio_option("maxgids", "30 kwh", STR(GEN_1_30_NEW_CAR_GIDS), maxgids == STR(GEN_1_30_NEW_CAR_GIDS));
-  c.input_radio_end("This would change ranges, and display formats to reflect type of battery in the car");
-  c.fieldset_end();
-
-  c.fieldset_start("Remote Control");
-  c.input_checkbox("Enable CAN writes", "canwrite", canwrite,
-    "<p>Controls overall CAN write access, some functions depend on this.</p>");
-  c.fieldset_end();
-
-  c.print("<hr>");
-  c.input_button("default", "Save");
-  c.form_end();
-  c.panel_end();
-  c.done();
-}
-
-*/
-/**
- * WebCfgBattery: configure battery parameters (URL /xnl/battery)
- */
-/**
-void OvmsVehicleVectrixVX1::WebCfgBattery(PageEntry_t& p, PageContext_t& c)
-{
-  std::string error;
-  //  suffsoc          	Sufficient SOC [%] (Default: 0=disabled)
-  //  suffrange        	Sufficient range [km] (Default: 0=disabled)
-  std::string suffrange, suffsoc;
-
-  if (c.method == "POST") {
-    // process form submission:
-    suffrange = c.getvar("suffrange");
-    suffsoc = c.getvar("suffsoc");
-
-    // check:
-    if (!suffrange.empty()) {
-      float n = atof(suffrange.c_str());
-      if (n < 0)
-        error += "<li data-input=\"suffrange\">Sufficient range invalid, must be &ge; 0</li>";
-    }
-    if (!suffsoc.empty()) {
-      float n = atof(suffsoc.c_str());
-      if (n < 0 || n > 100)
-        error += "<li data-input=\"suffsoc\">Sufficient SOC invalid, must be 0…100</li>";
-    }
-
-    if (error == "") {
-      // store:
-      MyConfig.SetParamValue("xnl", "suffrange", suffrange);
-      MyConfig.SetParamValue("xnl", "suffsoc", suffsoc);
-
-      c.head(200);
-      c.alert("success", "<p class=\"lead\">Nissan Leaf battery setup saved.</p>");
-      MyWebServer.OutputHome(p, c);
-      c.done();
-      return;
-    }
-
-    // output error, return to form:
-    error = "<p class=\"lead\">Error!</p><ul class=\"errorlist\">" + error + "</ul>";
-    c.head(400);
-    c.alert("danger", error.c_str());
-  }
-  else {
-    // read configuration:
-    suffrange = MyConfig.GetParamValue("xnl", "suffrange", "0");
-    suffsoc = MyConfig.GetParamValue("xnl", "suffsoc", "0");
-
-    c.head(200);
-  }
-
-  // generate form:
-
-  c.panel_start("primary", "Nissan Leaf battery setup");
-  c.form_start(p.uri);
-
-  c.fieldset_start("Charge control");
-
-  c.input_slider("Sufficient range", "suffrange", 3, "km",
-    atof(suffrange.c_str()) > 0, atof(suffrange.c_str()), 0, 0, 300, 1,
-    "<p>Default 0=off. Notify/stop charge when reaching this level.</p>");
-
-  c.input_slider("Sufficient SOC", "suffsoc", 3, "%",
-    atof(suffsoc.c_str()) > 0, atof(suffsoc.c_str()), 0, 0, 100, 1,
-    "<p>Default 0=off. Notify/stop charge when reaching this level.</p>");
-
-  c.fieldset_end();
-
-  c.print("<hr>");
-  c.input_button("default", "Save");
-  c.form_end();
-  c.panel_end();
-  c.done();
-}
-*/
-
-/**
  * GetDashboardConfig: Vectrix VX1 specific dashboard setup
  */
 void OvmsVehicleVectrixVX1::GetDashboardConfig(DashboardConfig& cfg)
@@ -276,13 +106,13 @@ void OvmsVehicleVectrixVX1::GetDashboardConfig(DashboardConfig& cfg)
         "{ from: 45, to: 60, className: 'yellow-band' },"
         "{ from: 60, to: 120, className: 'red-band' }]"
     "},{"
-      // Power:
-      "min: -10, max: 40,"
+      // Power: Kw
+      "min: -3, max: 15,"
       "plotBands: ["
-        "{ from: -10, to: 0, className: 'violet-band' },"
-        "{ from: 0, to: 5, className: 'green-band' },"
-        "{ from: 5, to: 25, className: 'yellow-band' },"
-        "{ from: 25, to: 40, className: 'red-band' }]"
+        "{ from: -3, to: 0, className: 'violet-band' },"
+        "{ from: 0, to: 7, className: 'green-band' },"
+        "{ from: 7, to: 10, className: 'yellow-band' },"
+        "{ from: 10, to: 15, className: 'red-band' }]"
     "},{"
       // Charger temperature:
       "min: 5, max: 85, tickInterval: 20,"
@@ -365,6 +195,7 @@ void OvmsVehicleVectrixVX1::WebPowerMon(PageEntry_t& p, PageContext_t& c)
                     "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.p.speed\"><span class=\"value\">?</span><span class=\"unit\">Km/h</span></div>\n"
                     "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.e.throttle\"><span class=\"value\">?</span><span class=\"unit\">%thr</span></div>\n"
                     "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.e.footbrake\"><span class=\"value\">?</span><span class=\"unit\">%brk</span></div>\n"
+                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.p.gpsspeed\"><span class=\"value\">?</span><span class=\"unit\">GPSKm/h</span></div>\n"
                   "</td>\n"
                 "</tr>\n"
                 "<tr>\n"
@@ -373,14 +204,20 @@ void OvmsVehicleVectrixVX1::WebPowerMon(PageEntry_t& p, PageContext_t& c)
                     "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.b.voltage\"><span class=\"value\">?</span><span class=\"unit\">V</span></div>\n"
                     "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.b.current\"><span class=\"value\">?</span><span class=\"unit\">A</span></div>\n"
                     "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.b.power\"><span class=\"value\">?</span><span class=\"unit\">kW</span></div>\n"
+                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.b.cac\"><span class=\"value\">?</span><span class=\"unit\">Ah CAC</span></div>\n"
+                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.b.energy.used\"><span class=\"value\">?</span><span class=\"unit\">kWh Used</span></div>\n"
+                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.b.energy.recd\"><span class=\"value\">?</span><span class=\"unit\">KWh Recv</span></div>\n"
                   "</td>\n"
                 "</tr>\n"
                 "<tr>\n"
-                  "<th>Motor</th>\n"
+                  "<th>Charger</th>\n"
                   "<td>\n"
-                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.b.voltage\"><span class=\"value\">?</span><span class=\"unit\">V</span></div>\n"
-                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.b.current\"><span class=\"value\">?</span><span class=\"unit\">A</span></div>\n"
-                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.b.power\"><span class=\"value\">?</span><span class=\"unit\">kW</span></div>\n"
+                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.c.voltage\"><span class=\"value\">?</span><span class=\"unit\">V</span></div>\n"
+                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.c.current\"><span class=\"value\">?</span><span class=\"unit\">A</span></div>\n"
+                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.c.time\"><span class=\"value\">?</span><span class=\"unit\">Sec</span></div>\n"
+                    "<div class=\"metric number\" data-prec=\"1\" data-metric=\"v.c.temp\"><span class=\"value\">?</span><span class=\"unit\">°C Temp</span></div>\n"
+                    "<div class=\"metric text\" data-prec=\"1\" data-metric=\"v.c.state\"><span class=\"label\">Last State:</span><span class=\"value\">?</span></div>\n"
+                    "<div class=\"metric number\" data-prec=\"0\" data-metric=\"v.c.charging\"><span class=\"value\">?</span><span class=\"unit\">State</span></div>\n"
                   "</td>\n"
                 "</tr>\n"
               "</tbody>\n"
@@ -390,55 +227,14 @@ void OvmsVehicleVectrixVX1::WebPowerMon(PageEntry_t& p, PageContext_t& c)
         "</div>\n"
       "</div>\n"
       "<div class=\"panel-footer\">\n"
-        "<form id=\"form-scmon\" class=\"form-horizontal\" method=\"post\" action=\"#\">\n"
-          "<div class=\"form-group\">\n"
-            "<label class=\"control-label col-sm-3\" for=\"input-filename\">Monitoring control:</label>\n"
-            "<div class=\"col-sm-9\">\n"
-              "<div class=\"input-group\">\n"
-                "<input type=\"text\" class=\"form-control font-monospace\"\n"
-                  "placeholder=\"optional recording file path, blank = monitoring only\"\n"
-                  "name=\"filename\" id=\"input-filename\" value=\"\" autocapitalize=\"none\" autocorrect=\"off\"\n"
-                  "autocomplete=\"section-scmon\" spellcheck=\"false\">\n"
-                "<div class=\"input-group-btn\">\n"
-                  "<button type=\"button\" class=\"btn btn-default\" data-toggle=\"filedialog\" data-target=\"#select-recfile\" data-input=\"#input-filename\">Select</button>\n"
-                "</div>\n"
-              "</div>\n"
-            "</div>\n"
-            "<div class=\"col-sm-9 col-sm-offset-3\" style=\"margin-top:5px;\">\n"
-              "<button type=\"button\" class=\"btn btn-default\" id=\"cmd-start\">Start</button>\n"
-              "<button type=\"button\" class=\"btn btn-default\" id=\"cmd-stop\">Stop</button>\n"
-              "<button type=\"button\" class=\"btn btn-default\" id=\"cmd-reset\">Reset</button>\n"
-              "<span class=\"help-block\"><p>Hint: you may change the file on the fly (change + push 'Start' again).</p></span>\n"
-            "</div>\n"
-            "<div class=\"col-sm-9 col-sm-offset-3\">\n"
-              "<samp id=\"cmdres-scmon\" class=\"samp\"></samp>\n"
-            "</div>\n"
-          "</div>\n"
-        "</form>\n"
-      "</div>\n"
     "</div>\n"
     "\n"
-    "<div class=\"filedialog\" id=\"select-recfile\" data-options='{\n"
-      "\"title\": \"Select recording file\",\n"
-      "\"path\": \"/sd/recordings/\",\n"
-      "\"quicknav\": [\"/sd/\", \"/sd/recordings/\"]\n"
-    "}' />\n"
     "\n"
     "<script>\n"
     "\n"
     "/**\n"
      "* Form handling\n"
      "*/\n"
-    "\n"
-    "$(\"#cmd-start\").on(\"click\", function(){\n"
-      "loadcmd(\"xvv mon start \" + $(\"#input-filename\").val(), \"#cmdres-scmon\");\n"
-    "});\n"
-    "$(\"#cmd-stop\").on(\"click\", function(){\n"
-      "loadcmd(\"xvv mon stop\", \"#cmdres-scmon\");\n"
-    "});\n"
-    "$(\"#cmd-reset\").on(\"click\", function(){\n"
-      "loadcmd(\"xvv mon reset\", \"#cmdres-scmon\");\n"
-    "});\n"
     "\n"
     "/**\n"
      "* Dyno chart\n"
@@ -448,8 +244,8 @@ void OvmsVehicleVectrixVX1::WebPowerMon(PageEntry_t& p, PageContext_t& c)
     "\n"
     "function get_dyno_data() {\n"
       "var data = {\n"
-        "bat_pwr_drv: metrics[\"xvv.s.b.pwr.drv\"],\n"
-        "bat_pwr_rec: metrics[\"xvv.s.b.pwr.rec\"],\n"
+        "bat_pwr_drv: metrics[\"v.b.energy.used\"],\n"
+        "bat_pwr_rec: metrics[\"v.b.energy.recd\"],\n"
       "};\n"
       "return data;\n"
     "}\n"
@@ -468,8 +264,8 @@ void OvmsVehicleVectrixVX1::WebPowerMon(PageEntry_t& p, PageContext_t& c)
           "events: {\n"
             "load: function () {\n"
               "$('#livestatus').on(\"msg:metrics\", function(e, update){\n"
-                "if (update[\"xvv.s.b.pwr.drv\"] != null\n"
-                 "|| update[\"xvv.s.b.pwr.rec\"] != null)\n"
+                "if (update[\"v.b.energy.used\"] != null\n"
+                 "|| update[\"v.b.energy.recd\"] != null)\n"
                   "update_dyno_chart();\n"
               "});\n"
             "}\n"
