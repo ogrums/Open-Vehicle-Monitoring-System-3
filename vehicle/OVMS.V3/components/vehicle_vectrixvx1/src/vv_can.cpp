@@ -77,14 +77,14 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
     // + (CAN_BYTE(6) << 16) + (CAN_BYTE(5) << 8) + CAN_BYTE(4)) * 0.05,
     // Kilometers);
     // *** ODOMETER ***
-    vx1_odometer =
-        (((uint32_t)CAN_BYTE(4) << 24) + ((uint32_t)CAN_BYTE(5) << 16) +
-         ((uint32_t)CAN_BYTE(6) << 8) + CAN_BYTE(7));
-    if (!vx1_odometer_tripstart)
+    vx1_odometer = CAN_UINT32L(4);
+
+    if (!vx1_odometer_tripstart) {
       vx1_odometer_tripstart = vx1_odometer;
+    }
+    StandardMetrics.ms_v_pos_odometer->SetValue((float)CAN_UINT32L(4) * 0.05);
     // trip A
-    StandardMetrics.ms_v_pos_trip->SetValue(
-        (float)((CAN_BYTE(1) << 8) + CAN_BYTE(0)) * 0.05, Kilometers);
+    StandardMetrics.ms_v_pos_trip->SetValue((float)CAN_UINTL(0) * 0.05);
     break;
   }
 
@@ -103,6 +103,8 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
     BusVoltage = CAN_BYTE(6);
     StandardMetrics.ms_v_bat_energy_recd->SetValue((float)((recd * 0.000032744)* BusVoltage / 1000));
     StandardMetrics.ms_v_bat_energy_used->SetValue((float)CAN_UINTL(4) * BusVoltage / 1000);
+    StandardMetrics.ms_v_bat_coulomb_recd->SetValue((float)((recd * 0.000032744)));
+    StandardMetrics.ms_v_bat_coulomb_used->SetValue((float)CAN_UINTL(4));
     break;
   }
 
@@ -161,7 +163,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
     break;
   }
 
-  case 0x00fdf040: // BMS Summary
+  case 0x00FDF040: // BMS Summary
   {
     // int k = (((CAN_BYTE(7)&0xf0)>>4)&0xf);
     int v1 =
@@ -191,7 +193,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
     break;
   }
 
-  case 0x00f00300: // Gear selector
+  case 0x00F00300: // Gear selector
   {
     // twizy_status low nibble:
     vx1_status = (vx1_status & 0xF0) | (CAN_BYTE(1) & 0x09);
@@ -237,14 +239,10 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
     break;
   }
 
-  case 0x00fee04C:
+  case 0x00FEE04C:
   {
     // Estimated range:
-    StandardMetrics.ms_v_bat_range_est->SetValue(
-        (float)((CAN_BYTE(7) << 24) + (CAN_BYTE(6) << 16) + (CAN_BYTE(5) << 8) +
-                CAN_BYTE(4)) *
-            0.5,
-        Kilometers);
+    StandardMetrics.ms_v_bat_range_est->SetValue((float)(CAN_UINT32L(4)) * 0.5, Kilometers);
     // ESP_LOGV(TAG, "IncomingFrameCan1: Range estimated %d",
     // StandardMetrics.ms_v_bat_range_est);
     break;
@@ -305,7 +303,7 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
 
   case 0x00fefc4c: // SOC
   {
-
+    StandardMetrics.ms_v_bat_soc->SetValue((float)(CAN_BYTE(0) * 0.390625));
     break;
   }
 
@@ -324,16 +322,13 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
 
   case 0x00ff0a4c: // Charger Status
   {
-    StandardMetrics.ms_v_charge_time->SetValue(
-        (int)(((uint16_t)CAN_BYTE(4) << 8) + ((uint16_t)CAN_BYTE(5))), Seconds);
+    StandardMetrics.ms_v_charge_time->SetValue((unsigned int)CAN_UINTL(4));
     break;
   }
 
   case 0x00fee017: // Odometer from Instrument Cluster
   {
-    StandardMetrics.ms_v_pos_odometer->SetValue(
-        (float)(((uint32_t)CAN_BYTE(4) << 24) + ((uint32_t)CAN_BYTE(5) << 16) +
-                ((uint32_t)CAN_BYTE(6) << 8) + CAN_BYTE(7)) * 0.05, Kilometers);
+
     break;
   }
 

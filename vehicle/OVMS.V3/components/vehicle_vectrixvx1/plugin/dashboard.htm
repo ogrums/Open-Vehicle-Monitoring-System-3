@@ -1,0 +1,227 @@
+<style type="text/css">
+.metric.number .value { min-width: 5em; }
+.metric.number .unit { min-width: 3em; }
+.night .highcharts-color-1 {
+  fill: #c3c3c8;
+  stroke: #c3c3c8;
+}
+.night .highcharts-legend-item text {
+  fill: #dddddd;
+}
+.highcharts-graph {
+  stroke-width: 4px;
+}
+.night .highcharts-tooltip-box {
+  fill: #000000;
+}
+.night .highcharts-tooltip-box {
+  color: #bbb;
+}
+#dynochart {
+  width: 100%;
+  max-width: 100%;
+  height: 50vh;
+  min-height: 265px;
+}
+.fullscreened #dynochart {
+  height: 80vh;
+}
+</style>
+
+<div class="panel panel-primary panel-single">
+  <div class="panel-heading">Power Monitor</div>
+  <div class="panel-body">
+    <div class="row receiver" id="livestatus">
+      <div class="table-responsive">
+        <table class="table table-bordered table-condensed">
+          <tbody>
+            <tr>
+              <th>Speed</th>
+              <td>
+                <div class="metric number" data-prec="1" data-metric="v.p.speed"><span class="value">?</span><span class="unit">Km/h</span></div>
+                <div class="metric number" data-prec="0" data-metric="v.e.throttle"><span class="value">?</span><span class="unit">%thr</span></div>
+                <div class="metric number" data-prec="0" data-metric="v.e.footbrake"><span class="value">?</span><span class="unit">%brk</span></div>
+                <div class="metric number" data-prec="1" data-metric="v.p.gpsspeed"><span class="value">?</span><span class="unit">GPSKm/h</span></div>
+              </td>
+            </tr>
+            <tr>
+              <th>Battery</th>
+              <td>
+                <div class="metric number" data-prec="1" data-metric="v.b.voltage"><span class="value">?</span><span class="unit">V</span></div>
+                <div class="metric number" data-prec="2" data-metric="v.b.current"><span class="value">?</span><span class="unit">A</span></div>
+                <div class="metric number" data-prec="2" data-metric="v.b.power"><span class="value">?</span><span class="unit">kW</span></div>
+                <div class="metric number" data-prec="1" data-metric="v.b.cac"><span class="value">?</span><span class="unit">Ah CAC</span></div>
+                <div class="metric number" data-prec="3" data-metric="v.b.energy.used"><span class="value">?</span><span class="unit">kWh Used</span></div>
+                <div class="metric number" data-prec="3" data-metric="v.b.energy.recd"><span class="value">?</span><span class="unit">KWh Recv</span></div>
+              </td>
+            </tr>
+            <tr>
+              <th>Charger</th>
+              <td>
+                <div class="metric number" data-prec="1" data-metric="v.c.voltage"><span class="value">?</span><span class="unit">V</span></div>
+                <div class="metric number" data-prec="2" data-metric="v.c.current"><span class="value">?</span><span class="unit">A</span></div>
+                <div class="metric number" data-prec="0" data-metric="v.c.time"><span class="value">?</span><span class="unit">Sec</span></div>
+                <div class="metric number" data-prec="1" data-metric="v.c.temp"><span class="value">?</span><span class="unit">°C Temp</span></div>
+                <div class="metric text" data-prec="0" data-metric="v.c.state"><span class="label">Last State:</span><span class="value">?</span></div>
+                <div class="metric number" data-prec="0" data-metric="v.c.charging"><span class="value">?</span><span class="unit">State</span></div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="dynochart"></div>
+    </div>
+  </div>
+  <div class="panel-footer">
+</div>
+
+
+<script>
+
+/**
+ * Form handling
+ */
+
+/**
+ * Dyno chart
+ */
+(function(){
+var dynochart;
+
+function get_dyno_data() {
+  var data = {
+    bat_pwr_drv: metrics["v.b.energy.used"],
+    bat_pwr_rec: metrics["v.b.energy.recd"],
+  };
+  return data;
+}
+
+function update_dyno_chart() {
+  var data = get_dyno_data();
+  dynochart.series[0].setData(data.bat_pwr_drv);
+  dynochart.series[1].setData(data.bat_pwr_rec);
+}
+
+function init_dyno_chart() {
+  var data = get_dyno_data();
+  dynochart = Highcharts.chart('dynochart', {
+    chart: {
+      type: 'spline',
+      events: {
+        load: function () {
+          $('#livestatus').on("msg:metrics", function(e, update){
+            if (update["v.b.energy.used"] != null
+             || update["v.b.energy.recd"] != null)
+              update_dyno_chart();
+          });
+        }
+      },
+      zoomType: 'x',
+      panning: true,
+      panKey: 'ctrl',
+    },
+    title: { text: null },
+    credits: { enabled: false },
+    legend: {
+      align: 'center',
+      verticalAlign: 'bottom',
+    },
+    xAxis: {
+      minTickInterval: 5,
+      tickPixelInterval: 50,
+      minorTickInterval: 'auto',
+      gridLineWidth: 1,
+    },
+    plotOptions: {
+      series: {
+        pointStart: 1,
+      },
+      spline: {
+        marker: {
+          enabled: false,
+        },
+      },
+    },
+    tooltip: {
+      shared: true,
+      crosshairs: true,
+      useHTML: true,
+      headerFormat: '<table>' +
+        '<tr><td class="tt-header">Speed:&nbsp;</td>' +
+        '<td style="text-align: right"><b>{point.key} kph</b></td></tr>',
+      pointFormat:
+        '<tr><td class="tt-color-{point.colorIndex}">{series.name}:&nbsp;</td>' +
+        '<td style="text-align: right"><b>{point.y}</b></td></tr>',
+      footerFormat: '</table>',
+      valueDecimals: 1,
+    },
+    yAxis: [{
+      title: { text: "Power [kW]" },
+      labels: { format: "{value:.0f}" },
+      min: 0,
+      minTickInterval: 1,
+      tickPixelInterval: 50,
+      minorTickInterval: 'auto',
+      showFirstLabel: false,
+    }],
+    responsive: {
+      rules: [{
+        condition: { maxWidth: 500 },
+        chartOptions: {
+          yAxis: [{
+            title: { text: null },
+          },{
+            title: { text: null },
+          }],
+        },
+      }],
+    },
+    series: [{
+      name: 'Max Drive Power',
+      tooltip: { valueSuffix: ' kW' },
+      data: data.bat_pwr_drv,
+      yAxis: 0,
+      animation: {
+        duration: 300,
+        easing: 'easeOutExpo'
+      },
+    },{
+      name: 'Max Recup Power',
+      tooltip: { valueSuffix: ' kW' },
+      data: data.bat_pwr_rec,
+      yAxis: 0,
+      animation: {
+        duration: 300,
+        easing: 'easeOutExpo'
+      },
+    }]
+  });
+  $('#dynochart').data('chart', dynochart).addClass('has-chart');
+}
+
+/**
+ * Chart initialization
+ */
+$("#dynochart").chart({
+  events: {
+   load: function () { init_charts(this); }
+ }
+});
+
+function init_charts() {
+  init_dyno_chart();
+}
+
+if (window.Highcharts) {
+  init_charts();
+} else {
+  $.ajax({
+    url: "" URL_ASSETS_CHARTS_JS "",
+    dataType: "script",
+    cache: true,
+    success: function(){ init_charts(); }
+  });
+}
+})();
+
+</script>
