@@ -72,7 +72,7 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
   memset(m_type,0,sizeof(m_type));
   m_charge_w = 0;
 
-  StandardMetrics.ms_v_bat_12v_voltage->SetValue(12);
+  //StandardMetrics.ms_v_bat_12v_voltage->SetValue(12);
   StandardMetrics.ms_v_bat_12v_voltage_alert->SetValue(false);
   //StandardMetrics.ms_v_charge_type->SetValue(undefined);
 
@@ -108,12 +108,4 @@ OvmsVehicleVectrixVX1::~OvmsVehicleVectrixVX1()
   const char* OvmsVehicleVectrixVX1::VehicleShortName()
   {
     return "vx1";
-  }
-
-void OvmsVehicleVectrixVX1::Notify12vCritical()
-  { // Not supported on Vectrix
-  }
-
-void OvmsVehicleVectrixVX1::Notify12vRecovered()
-  { // Not supported on Vectrix
   }

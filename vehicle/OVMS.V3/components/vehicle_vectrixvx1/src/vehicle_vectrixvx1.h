@@ -49,7 +49,7 @@ using namespace std;
 
 class OvmsVehicleVectrixVX1: public OvmsVehicle
   {
-  friend class SevconClient;
+
   public:
     OvmsVehicleVectrixVX1();
     ~OvmsVehicleVectrixVX1();
@@ -100,19 +100,10 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
 
     int vx1_chargeduration = 0;           // charge duration in seconds
 
-    unsigned int vx1_range_est = 50;              // Twizy estimated range in km
-    unsigned int vx1_range_ideal = 50;            // calculated ideal range in km
+    unsigned int vx1_range_est = 50;              // Vectrix estimated range in km
 
     unsigned int vx1_speed = 0;                   // current speed in 1/100 km/h
-    unsigned long vx1_odometer = 0;               // current odometer in 1/100 km = 10 m
-    unsigned long vx1_odometer_tripstart = 0;     // odometer at last power on
     unsigned int vx1_dist = 0;                    // cyclic distance counter in 1/10 m = 10 cm
-
-
-    // GPS log:
-    int cfg_gpslog_interval = 5;        // GPS-Log interval while driving [seconds]
-    uint32_t vx1_last_gpslog = 0;     // Time of last GPS-Log update
-
 
     // Accelerator pedal & kickdown detection:
 
@@ -126,8 +117,7 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
     void RequestNotify(unsigned int which);
     void DoNotify();
 
-    void SendGPSLog();
-    void SendTripLog();
+
 
 
 
@@ -145,8 +135,6 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
     void GetDashboardConfig(DashboardConfig& cfg);
 
   protected:
-    virtual void Notify12vCritical();
-    virtual void Notify12vRecovered();
 
     char m_vin[18];
     char m_type[5];

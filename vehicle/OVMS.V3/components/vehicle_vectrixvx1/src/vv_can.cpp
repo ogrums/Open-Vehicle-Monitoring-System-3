@@ -70,18 +70,9 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
 
   switch (p_frame->MsgID) {
 
-  case 0x18FEE017:
+  case 0x18FEE017: // Odometer + Trip A from Instrument Cluster
   {
-    // Odometer:
-    // StandardMetrics.ms_v_pos_odometer->SetValue((float) ((CAN_BYTE(7) << 24)
-    // + (CAN_BYTE(6) << 16) + (CAN_BYTE(5) << 8) + CAN_BYTE(4)) * 0.05,
-    // Kilometers);
     // *** ODOMETER ***
-    vx1_odometer = CAN_UINT32L(4);
-
-    if (!vx1_odometer_tripstart) {
-      vx1_odometer_tripstart = vx1_odometer;
-    }
     StandardMetrics.ms_v_pos_odometer->SetValue((float)CAN_UINT32L(4) * 0.05);
     // trip A
     StandardMetrics.ms_v_pos_trip->SetValue((float)CAN_UINTL(0) * 0.05);
@@ -326,12 +317,6 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
     break;
   }
 
-  case 0x00fee017: // Odometer from Instrument Cluster
-  {
-
-    break;
-  }
-
   case 0x18fee617:
   {
     // Clock:
@@ -382,9 +367,9 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
    }
 
   default:
-   {
-   break;
-   }
+  {
+    break;
+  }
 
  }
 }
