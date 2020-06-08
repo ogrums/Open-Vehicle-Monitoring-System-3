@@ -77,6 +77,7 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
   //StandardMetrics.ms_v_charge_type->SetValue(undefined);
 
   RegisterCanBus(1,CAN_MODE_ACTIVE,CAN_SPEED_250KBPS);
+  RegisterCanBus(2,CAN_MODE_ACTIVE,CAN_SPEED_250KBPS);
 
  /** Test change to integration vv_battmon
   BmsSetCellArrangementVoltage(40, 10);

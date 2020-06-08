@@ -366,6 +366,9 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
       break;
    }
 
+
+
+
   default:
   {
     break;
@@ -373,3 +376,98 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
 
  }
 }
+
+void OvmsVehicleVectrixVX1::IncomingFrameCan2(CAN_frame_t *p_frame) {
+
+  uint8_t *can_databuffer = p_frame->data.u8;
+
+  switch (p_frame->MsgID) {
+
+  case 0x001: // Adresse from 0x001 to 0x00F BMS JK-DZ08-BxA24S (x = 1, 2, 3 A equalizer)
+   {
+    // Response from request 0x001 : 0xFF (Len 1 byte)
+    //
+    // Adresse sames as above 0x001
+    // Frame 1 : 0x01, Byte#1#2 (Temp °C), Byte#3#4 (*10mv TotalVoltage), Byte#5#6 (AverageVoltageCell), Byte#7 identify quantity
+    // Frame 2 : 0x02, Highest cell, Lowest Cell, Balance with report, Byte#3#4, largest volt diff mV, Byte#6#7 equalizer current mA
+    // Frame 3 : 0x03, Byte#1#2 Trigger Diff voltage mV, Byte#3#4 max balance current mA, Balanced switch, Nb of cells, Byte#7 nothing
+    // Frame 4 : 0x04, cell Number, byte#2#3 cell voltage N mV, byte#4#5 cell voltage N+1 mV, byte#6#7 cell voltage N+2 mV
+    // Notes :Equalization and alarm bytes "Balance with report"
+    //  BIT0 means equalized battery (0)Stanby / (1) charging
+    //  BIT1 means equalized battery (0) Stanby / (1) discharge
+    //  BIT4 Number of units set (0) correctly / (1) Bad
+    //  BIT5 Wire Resistance is (0) normal / (1) Bad
+    // Identify quantity is number of cell check by BMS, number of cells is the numer put in setting
+    // The Cell Number N is the number of the firt cell voltage in the frame
+    // Balanced Switch : 0x01 = On / 0x00 = Off
+
+    switch (CAN_BYTE(0))
+    {
+      case 0x01: // Temperation °C, Total Voltage, Average Cell Voltage, Number Cell Check
+      {
+        break;
+      }
+      case 0x02: // Highest Cell Number, Lowest Cell Number, Status Equal, Max diff Volt mV, Equal Current mA
+      {
+        break;
+      }
+      case 0x03: // Setting BMS Trigger Diff Voltage mV, Max Balance Current Ma, Active Balanced, Nb cell Setting
+      {
+        break;
+      }
+      case 0x04: // Cell voltage N, N+1 and N+2 in mV
+      {
+       int v1jk = CAN_UINT(2); // Cell N
+       int v2jk = CAN_UINT(4); // Cell N+1
+       int v3jk = CAN_UINT(6); // Cell N+2
+
+       int kjk = CAN_BYTE(1);
+       ESP_LOGD(TAG, "BMS %02x %03x %03x %03x", kjk, v1jk, v2jk, v3jk);
+       break;
+      }
+      break;
+    }
+    break;
+  }
+
+  default:
+  {
+    break;
+  }
+
+ }
+}
+
+OvmsVehicle::vehicle_command_t OvmsVehicleVectrixVX1::CommandStartBalance()
+  {
+  CAN_frame_t frame;
+  memset(&frame,0,sizeof(frame));
+
+  frame.origin = m_can2;
+  frame.FIR.U = 0;
+  frame.FIR.B.DLC = 2;
+  frame.FIR.B.FF = CAN_frame_std;
+  frame.MsgID = 0x001;
+  frame.data.u8[0] = 0xF6;
+  frame.data.u8[1] = 0x01; // Active Balance
+  m_can1->Write(&frame);
+
+  return Success;
+  }
+
+OvmsVehicle::vehicle_command_t OvmsVehicleVectrixVX1::CommandStopBalance()
+  {
+  CAN_frame_t frame;
+  memset(&frame,0,sizeof(frame));
+
+  frame.origin = m_can2;
+  frame.FIR.U = 0;
+  frame.FIR.B.DLC = 2;
+  frame.FIR.B.FF = CAN_frame_std;
+  frame.MsgID = 0x001;
+  frame.data.u8[0] = 0xF6;
+  frame.data.u8[1] = 0x00; // Stop Balance
+  m_can1->Write(&frame);
+
+  return Success;
+  }

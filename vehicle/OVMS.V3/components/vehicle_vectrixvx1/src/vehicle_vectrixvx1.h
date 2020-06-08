@@ -63,6 +63,11 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
 
   public:
     void IncomingFrameCan1(CAN_frame_t* p_frame);
+    void IncomingFrameCan2(CAN_frame_t* p_frame);
+
+  public:
+    virtual vehicle_command_t CommandStartBalance();
+    virtual vehicle_command_t CommandStopBalance();
 
   protected:
     static size_t m_modifier;
@@ -142,8 +147,8 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
 
 
     // --------------------------------------------------------------------------
-    // Twizy battery monitoring subsystem
-    //  - implementation: rt_battmon.(h,cpp)
+    // Vectrix battery monitoring subsystem
+    //  - implementation: vv_battmon.(h,cpp)
     //
 
     public:
