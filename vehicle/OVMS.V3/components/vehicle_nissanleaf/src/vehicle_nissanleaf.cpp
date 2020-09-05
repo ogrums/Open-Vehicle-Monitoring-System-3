@@ -40,26 +40,39 @@ static const char *TAG = "v-nissanleaf";
 #include "ovms_metrics.h"
 #include "metrics_standard.h"
 #include "ovms_webserver.h"
+#include "ovms_command.h"
+#include "ovms_config.h"
 
-#define MAX_POLL_DATA_LEN 196
+#define MAX_POLL_DATA_LEN         196
+#define BMS_TXID                  0x79B
+#define BMS_RXID                  0x7BB
+#define CHARGER_TXID              0x797
+#define CHARGER_RXID              0x79a
+#define BROADCAST_TXID            0x7df
+#define BROADCAST_RXID            0x0
+
+#define VIN_PID                   0x81
+#define QC_COUNT_PID              0x1203
+#define L1L2_COUNT_PID            0x1205
 
 enum poll_states
   {
   POLLSTATE_OFF,      //- car is off
   POLLSTATE_ON,       //- car is on
-  POLLSTATE_RUNNING,  //- car is driving
-  POLLSTATE_CHARGING //- car is charging
+  POLLSTATE_RUNNING,  //- car is in drive/reverse
+  POLLSTATE_CHARGING  //- car is charging
   };
 
 static const OvmsVehicle::poll_pid_t obdii_polls[] =
   {
-    { 0x797, 0x79a, VEHICLE_POLL_TYPE_OBDIIGROUP, 0x81, {  0, 999, 0, 0 } }, // VIN [19]
-    { 0x797, 0x79a, VEHICLE_POLL_TYPE_OBDIIEXTENDED, 0x1203, {  0, 999, 0, 0 } }, // QC [4]
-    { 0x797, 0x79a, VEHICLE_POLL_TYPE_OBDIIEXTENDED, 0x1205, {  0, 999, 0, 0 } }, // L0/L1/L2 [4]
-    { 0x79b, 0x7bb, VEHICLE_POLL_TYPE_OBDIIGROUP, 0x01, {  0, 60, 0, 60 } }, // bat [39/41]
-    { 0x79b, 0x7bb, VEHICLE_POLL_TYPE_OBDIIGROUP, 0x02, {  0, 60, 0, 60 } }, // battery voltages [196]
-    { 0x79b, 0x7bb, VEHICLE_POLL_TYPE_OBDIIGROUP, 0x04, {  0, 300, 0, 300 } }, // battery temperatures [14]
-    { 0, 0, 0x00, 0x00, { 0, 0, 0, 0 } }
+    { CHARGER_TXID, CHARGER_RXID, VEHICLE_POLL_TYPE_OBDIIGROUP, VIN_PID, {  0, 900, 0, 0 }, 2 },           // VIN [19]
+    { CHARGER_TXID, CHARGER_RXID, VEHICLE_POLL_TYPE_OBDIIEXTENDED, QC_COUNT_PID, {  0, 900, 0, 0 }, 2 },   // QC [2]
+    { CHARGER_TXID, CHARGER_RXID, VEHICLE_POLL_TYPE_OBDIIEXTENDED, L1L2_COUNT_PID, {  0, 900, 0, 0 }, 2 }, // L0/L1/L2 [2]
+    { BMS_TXID, BMS_RXID, VEHICLE_POLL_TYPE_OBDIIGROUP, 0x01, {  0, 60, 0, 60 }, 1 },   // bat [39/41]
+    { BMS_TXID, BMS_RXID, VEHICLE_POLL_TYPE_OBDIIGROUP, 0x02, {  0, 60, 0, 60 }, 1 },   // battery voltages [196]
+    { BMS_TXID, BMS_RXID, VEHICLE_POLL_TYPE_OBDIIGROUP, 0x04, {  0, 300, 0, 300 }, 1 }, // battery temperatures [14]
+    { BMS_TXID, BMS_RXID, VEHICLE_POLL_TYPE_OBDIIGROUP, 0x06, {  0, 0, 0, 0 }, 1 },   // battery shunts [96]
+    { 0, 0, 0x00, 0x00, { 0, 0, 0, 0 }, 0 }
   };
 
 void remoteCommandTimer(TimerHandle_t timer)
@@ -92,7 +105,20 @@ enum charge_duration_index
   CHARGE_DURATION_RANGE_L0,
   };
 
+OvmsVehicleNissanLeaf* OvmsVehicleNissanLeaf::GetInstance(OvmsWriter* writer /*=NULL*/)
+  {
+    OvmsVehicleNissanLeaf* nl = (OvmsVehicleNissanLeaf*) MyVehicleFactory.ActiveVehicle();
+    string type = StdMetrics.ms_v_type->AsString();
+    if (!nl || type != "NL") {
+      if (writer)
+        writer->puts("Error: Nissan Leaf vehicle module not selected");
+      return NULL;
+    }
+    return nl;
+  }
+
 OvmsVehicleNissanLeaf::OvmsVehicleNissanLeaf()
+  : nl_obd_rxwait(1,1)
   {
   ESP_LOGI(TAG, "Nissan Leaf v3.0 vehicle module");
 
@@ -103,6 +129,7 @@ OvmsVehicleNissanLeaf::OvmsVehicleNissanLeaf()
   m_range_instrument = MyMetrics.InitInt("xnl.v.b.range.instrument", SM_STALE_HIGH, 0, Kilometers);
   m_bms_thermistor = new OvmsMetricVector<int>("xnl.bms.thermistor", SM_STALE_MIN, Native);
   m_bms_temp_int = new OvmsMetricVector<int>("xnl.bms.temp_int", SM_STALE_MIN, Celcius);
+  m_bms_balancing = MyMetrics.InitBitset<96>("xnl.bms.balancing", SM_STALE_HIGH, 0);
   BmsSetCellArrangementVoltage(96, 32);
   BmsSetCellArrangementTemperature(3, 1);
 
@@ -133,14 +160,16 @@ OvmsVehicleNissanLeaf::OvmsVehicleNissanLeaf()
   m_climate_remotecool = MyMetrics.InitBool("xnl.cc.remotecool", SM_STALE_MIN, false);
   MyMetrics.InitBool("v.e.on", SM_STALE_MIN, false);
   MyMetrics.InitBool("v.e.awake", SM_STALE_MID, false);
+  MyMetrics.InitBool("v.e.locked", SM_STALE_MID, false);
   MyMetrics.InitBool("v.vin", SM_STALE_NONE, "");
   MyMetrics.InitString("v.c.state",SM_STALE_MID,"stopped");
   m_gen1_charger = false;
 
   RegisterCanBus(1,CAN_MODE_ACTIVE,CAN_SPEED_500KBPS);
   RegisterCanBus(2,CAN_MODE_ACTIVE,CAN_SPEED_500KBPS);
-  PollSetPidList(m_can1,obdii_polls);
   PollSetState(POLLSTATE_OFF);
+  PollSetResponseSeparationTime(0);
+  PollSetPidList(m_can1,obdii_polls);
 
   MyConfig.RegisterParam("xnl", "Nissan Leaf", true, true);
   ConfigChanged(NULL);
@@ -151,6 +180,9 @@ OvmsVehicleNissanLeaf::OvmsVehicleNissanLeaf()
 
   m_remoteCommandTimer = xTimerCreate("Nissan Leaf Remote Command", 100 / portTICK_PERIOD_MS, pdTRUE, this, remoteCommandTimer);
   m_ccDisableTimer = xTimerCreate("Nissan Leaf CC Disable", 1000 / portTICK_PERIOD_MS, pdFALSE, this, ccDisableTimer);
+
+  //load custom shell commands
+  CommandInit();
 
   using std::placeholders::_1;
   using std::placeholders::_2;
@@ -165,8 +197,29 @@ OvmsVehicleNissanLeaf::~OvmsVehicleNissanLeaf()
 #endif
   }
 
+void OvmsVehicleNissanLeaf::CommandInit()
+  {
+  cmd_xnl = MyCommandApp.RegisterCommand("xnl","Nissan Leaf framework");
+
+  OvmsCommand* obd = cmd_xnl->RegisterCommand("obd", "OBD2 tools");
+  OvmsCommand* cmd_can1 = obd->RegisterCommand("can1", "Send OBD2 request, output response to EV can bus");
+  cmd_can1->RegisterCommand("device", "Send OBD2 request to an ECU",shell_obd_request,
+    "<txid> <rxid> <request>\n"
+    "Where <request> includes mode (01, 02, 09, 10, 1A, 21 or 22) and pid.\n"
+    "Example: 79B 7BB 2101", 3, 3);
+  cmd_can1->RegisterCommand("broadcast", "Send OBD2 request as broadcast", shell_obd_request, "<request>", 1, 1);
+  OvmsCommand* cmd_can2 = obd->RegisterCommand("can2", "Send to CAR can bus");
+  cmd_can2->RegisterCommand("device", "Send OBD2 request to a device", shell_obd_request,
+    "<txid> <rxid> <request>\n"
+    "Where <request> includes mode (01, 02, 09, 10, 1A, 21 or 22) and pid.\n"
+    "Example: 79B 7BB 2101", 3, 3);
+  cmd_can2->RegisterCommand("broadcast", "Send OBD2 request as broadcast", shell_obd_request, "<request>", 1, 1);
+  }
+
 void OvmsVehicleNissanLeaf::ConfigChanged(OvmsConfigParam* param)
-{
+  {
+  if (param && param->GetName() != "xnl")
+    return;
   ESP_LOGD(TAG, "Nissan Leaf reload configuration");
 
   // Note that we do not store a configurable maxRange like Kia Soal and Renault Twizy.
@@ -181,7 +234,9 @@ void OvmsVehicleNissanLeaf::ConfigChanged(OvmsConfigParam* param)
   StandardMetrics.ms_v_charge_limit_range->SetValue( (float) MyConfig.GetParamValueInt("xnl", "suffrange"), Kilometers );
 
   //TODO nl_enable_write = MyConfig.GetParamValueBool("xnl", "canwrite", false);
-}
+  m_enable_write = MyConfig.GetParamValueBool("xnl", "canwrite", false);
+  if (!m_enable_write) PollSetState(POLLSTATE_OFF);
+  }
 
 
 // Takes care of setting all the state appropriate when the car is on
@@ -193,7 +248,7 @@ void OvmsVehicleNissanLeaf::vehicle_nissanleaf_car_on(bool isOn)
     {
     // Log once that car is being turned on
     ESP_LOGI(TAG,"CAR IS ON");
-    PollSetState(POLLSTATE_ON);
+    if (m_enable_write) PollSetState(POLLSTATE_ON);
     // Reset trip values
     StandardMetrics.ms_v_bat_energy_recd->SetValue(0);
     StandardMetrics.ms_v_bat_energy_used->SetValue(0);
@@ -205,7 +260,10 @@ void OvmsVehicleNissanLeaf::vehicle_nissanleaf_car_on(bool isOn)
     // Log once that car is being turned off
     ESP_LOGI(TAG,"CAR IS OFF");
     //StandardMetrics.ms_v_env_awake->SetValue(false);
-    PollSetState(POLLSTATE_OFF);
+    if (StandardMetrics.ms_v_charge_state->AsString()  != "charging")
+      {
+      PollSetState(POLLSTATE_OFF);
+      }
     }
 
   // Always set this value to prevent it from going stale
@@ -221,7 +279,7 @@ void OvmsVehicleNissanLeaf::vehicle_nissanleaf_car_on(bool isOn)
 //
 void OvmsVehicleNissanLeaf::vehicle_nissanleaf_charger_status(ChargerStatus status)
   {
-  bool fast_charge;
+  bool fast_charge  = false;
   switch (status)
     {
     case CHARGER_STATUS_IDLE:
@@ -236,6 +294,7 @@ void OvmsVehicleNissanLeaf::vehicle_nissanleaf_charger_status(ChargerStatus stat
       StandardMetrics.ms_v_charge_state->SetValue("stopped");
       break;
     case CHARGER_STATUS_QUICK_CHARGING:
+      fast_charge = true;
     case CHARGER_STATUS_CHARGING:
       if (!StandardMetrics.ms_v_charge_inprogress->AsBool())
         {
@@ -244,11 +303,11 @@ void OvmsVehicleNissanLeaf::vehicle_nissanleaf_charger_status(ChargerStatus stat
         }
       StandardMetrics.ms_v_door_chargeport->SetValue(true); //see 0x35d, can't use as only open signal
       StandardMetrics.ms_v_charge_inprogress->SetValue(true);
-      fast_charge = StandardMetrics.ms_v_charge_type->AsString() == "chademo";
+      StandardMetrics.ms_v_charge_type->SetValue(fast_charge ? "chademo" : "type1");
       StdMetrics.ms_v_charge_mode->SetValue(fast_charge ? "performance" : "standard");
       StandardMetrics.ms_v_charge_substate->SetValue("onrequest");
       StandardMetrics.ms_v_charge_state->SetValue("charging");
-      PollSetState(POLLSTATE_CHARGING);
+      if (m_enable_write) PollSetState(POLLSTATE_CHARGING);
       // TODO only use battery current for Quick Charging, for regular charging
       // we should return AC line current and voltage, not battery
       // TODO does the leaf know the AC line current and voltage?
@@ -304,9 +363,119 @@ void OvmsVehicleNissanLeaf::vehicle_nissanleaf_charger_status(ChargerStatus stat
 
 int OvmsVehicleNissanLeaf::GetNotifyChargeStateDelay(const char* state)
   {
-    if (StandardMetrics.ms_m_monotonic->AsInt() < 10)
-      return 0; //avoid notify on boot triggered by setting delay
-    else return 5; //allow time for charger to handshake
+  if (StandardMetrics.ms_m_monotonic->AsInt() < 10)
+    return 0; //avoid notify on boot triggered by setting delay
+  else return 5; //allow time for charger to handshake
+  }
+
+void OvmsVehicleNissanLeaf::shell_obd_request(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv)
+  {
+    OvmsVehicleNissanLeaf* nl = GetInstance(writer);
+    const char* strbus = cmd->GetParent()->GetName();
+    if (!nl)
+      return;
+    if (!MyConfig.GetParamValueBool("xnl", "canwrite", false)) {
+        writer->puts("ERROR: canwrite not enabled");
+        return;
+      }
+
+    uint16_t txid = 0, rxid = 0;
+    uint32_t req = 0;
+    uint8_t bus = 2; // default to CAR can
+    string response;
+
+    // parse args:
+    string device = cmd->GetName();
+    if (device == "device") {
+      if (argc < 3) {
+        writer->puts("ERROR: too few args, need: txid rxid request");
+        return;
+      }
+      txid = strtol(argv[0], NULL, 16);
+      rxid = strtol(argv[1], NULL, 16);
+      req = strtol(argv[2], NULL, 16);
+      bus = (strcmp(strbus,"can1") == 0 ? 1 : 2);
+    } else {
+      if (argc < 1) {
+        writer->puts("ERROR: too few args, need: request");
+        return;
+      }
+      req = strtol(argv[0], NULL, 16);
+      if (device == "broadcast") {
+        txid = BROADCAST_TXID;
+        rxid = BROADCAST_RXID;
+      }
+    }
+
+    // validate request:
+    uint8_t mode = (req <= 0xffff) ? ((req & 0xff00) >> 8) : ((req & 0xff0000) >> 16);
+    if (mode != 0x01 && mode != 0x02 && mode != 0x09 &&
+        mode != 0x10 && mode != 0x1A && mode != 0x21 && mode != 0x22) {
+      writer->puts("ERROR: mode must be one of: 01, 02, 09, 10, 1A, 21 or 22");
+      return;
+    } else if (req > 0xffffff) {
+      writer->puts("ERROR: PID must be 8 or 16 bit");
+      return;
+    }
+
+    // execute request:
+    if (!nl->ObdRequest(txid, rxid, req, response, 3000, bus)) {
+      if (bus == 1) writer->puts("ERROR: timeout waiting for response on can1");
+      if (bus == 2) writer->puts("ERROR: timeout waiting for response on can2");
+      return;
+    }
+
+    // output response as hex dump:
+    writer->puts("Response:");
+    char *buf = NULL;
+    size_t rlen = response.size(), offset = 0;
+    do {
+      rlen = FormatHexDump(&buf, response.data() + offset, rlen, 16);
+      offset += 16;
+      writer->puts(buf ? buf : "-");
+    } while (rlen);
+    if (buf)
+      free(buf);
+  }
+
+bool OvmsVehicleNissanLeaf::ObdRequest(uint16_t txid, uint16_t rxid, uint32_t request, string& response, int timeout_ms /*=3000*/, uint8_t bus)
+  {
+  OvmsMutexLock lock(&nl_obd_request);
+  // prepare single poll:
+  OvmsVehicle::poll_pid_t poll[] = {
+    { txid, rxid, 0, 0, { 1, 1, 1, 1 }, 0 },
+    { 0, 0, 0, 0, { 0, 0, 0, 0 }, 0 }
+  };
+  if (request < 0x10000) {
+    poll[0].type = (request & 0xff00) >> 8;
+    poll[0].pid = request & 0xff;
+  } else {
+    poll[0].type = (request & 0xff0000) >> 16;
+    poll[0].pid = request & 0xffff;
+  }
+  poll[0].pollbus = bus;
+  // stop default polling:
+  PollSetPidList(m_poll_bus, NULL);
+  vTaskDelay(pdMS_TO_TICKS(100));
+
+  // clear rx semaphore, start single poll:
+  nl_obd_rxwait.Take(0);
+  nl_obd_rxbuf.clear();
+  PollSetPidList(m_poll_bus, poll);
+
+  // wait for response:
+  bool rxok = nl_obd_rxwait.Take(pdMS_TO_TICKS(timeout_ms));
+  if (rxok == pdTRUE) {
+    response = nl_obd_rxbuf;
+    nl_obd_rxbuf.clear();
+    }
+
+  // restore default polling:
+  nl_obd_rxwait.Give();
+  vTaskDelay(pdMS_TO_TICKS(100));
+  PollSetPidList(m_poll_bus, obdii_polls);
+
+  return (rxok == pdTRUE);
   }
 
 void OvmsVehicleNissanLeaf::PollReply_Battery(uint8_t reply_data[], uint16_t reply_len)
@@ -376,9 +545,36 @@ void OvmsVehicleNissanLeaf::PollReply_BMS_Volt(uint8_t reply_data[], uint16_t re
   for(i=0; i<96; i++)
     {
     int millivolt = reply_data[i*2] << 8 | reply_data[i*2+1];
-    BmsSetCellVoltage(i, millivolt / 1000.0);
+    if (millivolt < 5000) //ignore invalid readings
+      {
+      BmsSetCellVoltage(i, millivolt / 1000.0);
+      }
     }
   }
+
+void OvmsVehicleNissanLeaf::PollReply_BMS_Shunt(uint8_t reply_data[], uint16_t reply_len)
+  {
+  if (reply_len != 24)
+    {
+    ESP_LOGI(TAG, "PollReply_BMS_Shunt: len=%d != 24", reply_len);
+    return;
+    }
+    //  > 0x79b 21 06
+    //  < 0x7bb 61 06
+    // [ 0..23]: Contains all 96 of the cell shunts, where cell1=bit3, cell2=bit2, cell3=bit1, cell4=bit0 of byte0 etc
+    // referred to as shunt order 8421
+  std::bitset<96> balancing;
+  int i;
+  for(i=0; i<24; i++)
+    {
+    if ((reply_data[i] & 0x08) == 0x08) balancing.set(i*4 + 0);
+    if ((reply_data[i] & 0x04) == 0x04) balancing.set(i*4 + 1);
+    if ((reply_data[i] & 0x02) == 0x02) balancing.set(i*4 + 2);
+    if ((reply_data[i] & 0x01) == 0x01) balancing.set(i*4 + 3);
+    }
+  m_bms_balancing->SetValue(balancing);
+  }
+
 
 void OvmsVehicleNissanLeaf::PollReply_BMS_Temp(uint8_t reply_data[], uint16_t reply_len)
   {
@@ -428,9 +624,9 @@ void OvmsVehicleNissanLeaf::PollReply_BMS_Temp(uint8_t reply_data[], uint16_t re
 
 void OvmsVehicleNissanLeaf::PollReply_QC(uint8_t reply_data[], uint16_t reply_len)
   {
-  if (reply_len != 4)
+  if (reply_len != 2)
     {
-    ESP_LOGI(TAG, "PollReply_QC: len=%d != 4", reply_len);
+    ESP_LOGI(TAG, "PollReply_QC: len=%d != 2", reply_len);
     return;
     }
   //  > 0x797 22 12 03
@@ -446,9 +642,9 @@ void OvmsVehicleNissanLeaf::PollReply_QC(uint8_t reply_data[], uint16_t reply_le
 
 void OvmsVehicleNissanLeaf::PollReply_L0L1L2(uint8_t reply_data[], uint16_t reply_len)
   {
-  if (reply_len != 4)
+  if (reply_len != 2)
     {
-    ESP_LOGI(TAG, "PollReply_L0L1L2: len=%d != 4", reply_len);
+    ESP_LOGI(TAG, "PollReply_L0L1L2: len=%d != 2", reply_len);
     return;
     }
   //  > 0x797 22 12 05
@@ -473,60 +669,62 @@ void OvmsVehicleNissanLeaf::PollReply_VIN(uint8_t reply_data[], uint16_t reply_l
   //  < 0x79a 61 81
   // [ 0..16] 53 4a 4e 46 41 41 5a 45 30 55 3X 3X 3X 3X 3X 3X 3X
   // [17..18] 00 00
-
-  StandardMetrics.ms_v_vin->SetValue((char*)reply_data);
+  char buf[19];
+  strncpy(buf,(char*)reply_data,reply_len);
+  StandardMetrics.ms_v_vin->SetValue(buf); //(char*)reply_data
   }
 
 // Reassemble all pieces of a multi-frame reply.
-void OvmsVehicleNissanLeaf::IncomingPollReply(canbus* bus, uint16_t type, uint16_t pid, uint8_t* data, uint8_t length, uint16_t remain)
+void OvmsVehicleNissanLeaf::IncomingPollReply(canbus* bus, uint16_t type, uint16_t pid, uint8_t* data, uint8_t length, uint16_t mlremain)
   {
-  static int last_pid = -1;
-  static int last_remain = -1;
-  static uint8_t buf[MAX_POLL_DATA_LEN];
-  static int bufpos = 0;
+  string& rxbuf = nl_obd_rxbuf;
 
-  int i;
-  if ( pid != last_pid || remain >= last_remain )
-    {
-    // must be a new reply, so reset to the beginning
-    last_pid=pid;
-    last_remain=remain;
-    bufpos=0;
-    }
-  for (i=0; i<length; i++)
-    {
-    if ( bufpos < sizeof(buf) ) buf[bufpos++] = data[i];
-    }
-  if (remain==0)
-    {
-    uint32_t id_pid = m_poll_moduleid_low<<16 | pid;
+  // init / fill rx buffer:
+  if (m_poll_ml_frame == 0) {
+    rxbuf.clear();
+    rxbuf.reserve(length + mlremain);
+  }
+  rxbuf.append((char*)data, length);
+  if (mlremain)
+    return;
+
+  static uint8_t buf[MAX_POLL_DATA_LEN];
+  memcpy(buf, rxbuf.c_str(), rxbuf.size());
+
+  uint32_t id_pid = m_poll_moduleid_low<<16 | pid;
     switch (id_pid)
       {
-      case 0x7bb0001: // battery
-        PollReply_Battery(buf, bufpos);
+      case BMS_RXID<<16 | 0x01: // battery
+        PollReply_Battery(buf, rxbuf.size());
         break;
-      case 0x7bb0002:
-        PollReply_BMS_Volt(buf, bufpos);
+      case BMS_RXID<<16 | 0x02:
+        PollReply_BMS_Volt(buf, rxbuf.size());
         break;
-      case 0x7bb0004:
-        PollReply_BMS_Temp(buf, bufpos);
+      case BMS_RXID<<16 | 0x06:
+        PollReply_BMS_Shunt(buf, rxbuf.size());
         break;
-      case 0x79a1203: // QC
-        PollReply_QC(buf, bufpos);
+      case BMS_RXID<<16 | 0x04:
+        PollReply_BMS_Temp(buf, rxbuf.size());
         break;
-      case 0x79a1205: // L0/L1/L2
-        PollReply_L0L1L2(buf, bufpos);
+      case CHARGER_RXID<<16 | QC_COUNT_PID: // QC
+        PollReply_QC(buf, rxbuf.size());
         break;
-      case 0x79a0081: // VIN
-        PollReply_VIN(buf, bufpos);
+      case CHARGER_RXID<<16 | L1L2_COUNT_PID: // L0/L1/L2
+        PollReply_L0L1L2(buf, rxbuf.size());
+        break;
+      case CHARGER_RXID<<16 | VIN_PID: // VIN
+        PollReply_VIN(buf, rxbuf.size());
         break;
       default:
-        ESP_LOGI(TAG, "IncomingPollReply: unknown reply module|pid=%#x len=%d", id_pid, bufpos);
+        ESP_LOGI(TAG, "IncomingPollReply: unknown reply module|pid=%#x len=%d", id_pid, rxbuf.size());
         break;
       }
-    last_pid=-1;
-    last_remain=-1;
-    bufpos=0;
+
+    // single poll?
+    if (!nl_obd_rxwait.IsAvail()) {
+      // yes: stop poller & signal response
+      PollSetPidList(m_poll_bus, NULL);
+      nl_obd_rxwait.Give();
     }
   }
 
@@ -651,28 +849,25 @@ void OvmsVehicleNissanLeaf::IncomingFrameCan1(CAN_frame_t* p_frame)
       //  {
         // can_databuffer[6] is the J1772 pilot current, 0.5A per bit
         // TODO enum?
-      float current_limit = d[6] / 2.0f;
-      StandardMetrics.ms_v_charge_climit->SetValue(current_limit);
-      if (current_limit > 0)
-        {
-        StandardMetrics.ms_v_charge_type->SetValue("type1");
-        }
+      StandardMetrics.ms_v_charge_climit->SetValue(d[6] / 2.0f);
+      StandardMetrics.ms_v_charge_current->SetValue(d[1] / 2.0f);
       //d[3] ramps from 0 to 0xB3 (179) but can sit at 1 due to capacitance?? set >90 to ensure valid signal
       //use to set pilot signal
-      StandardMetrics.ms_v_charge_voltage->SetValue(d[3]);
-      if (d[3] > 90)
+      //d[4] appears to be chademo charge voltage
+      StandardMetrics.ms_v_charge_voltage->SetValue(d[4] > d[3] ? d[4] : d[3]);
+      if (d[3] > 90 || d[4] > 90)
         {
-          StandardMetrics.ms_v_charge_pilot->SetValue(true);
-          StandardMetrics.ms_v_charge_current->SetValue(d[1]/2.0f); //AC charger current
+        StandardMetrics.ms_v_charge_pilot->SetValue(true);
         }
       else
         {
-          StandardMetrics.ms_v_charge_pilot->SetValue(false);
+        StandardMetrics.ms_v_charge_pilot->SetValue(false);
         }
       //  }
       switch (d[5])
         {
         case 0x80:
+        case 0x82:
           vehicle_nissanleaf_charger_status(CHARGER_STATUS_IDLE);
           break;
         case 0x83:
@@ -681,10 +876,18 @@ void OvmsVehicleNissanLeaf::IncomingFrameCan1(CAN_frame_t* p_frame)
         case 0x84:
           vehicle_nissanleaf_charger_status(CHARGER_STATUS_FINISHED);
           break;
-        case 0x88:
-          vehicle_nissanleaf_charger_status(CHARGER_STATUS_CHARGING);
+        case 0x88: // on evse power loss car still reports 0x88
+          if (StandardMetrics.ms_v_charge_pilot->AsBool())
+            {
+            vehicle_nissanleaf_charger_status(CHARGER_STATUS_CHARGING);
+            }
+          else
+            {
+            vehicle_nissanleaf_charger_status(CHARGER_STATUS_FINISHED);
+            }
           break;
         case 0x90: //this state appears just before 0x88 and after evse removed (prepare/finish)
+        case 0x92:
           vehicle_nissanleaf_charger_status(CHARGER_STATUS_IDLE);
           break;
         case 0x98:
@@ -970,10 +1173,10 @@ void OvmsVehicleNissanLeaf::IncomingFrameCan1(CAN_frame_t* p_frame)
         {
         // Quick Charging
         // TODO enum?
-        StandardMetrics.ms_v_charge_type->SetValue("chademo");
+        //StandardMetrics.ms_v_charge_type->SetValue("chademo");
         StandardMetrics.ms_v_charge_climit->SetValue(120);
         StandardMetrics.ms_v_charge_pilot->SetValue(true);
-        StandardMetrics.ms_v_door_chargeport->SetValue(true);
+        //StandardMetrics.ms_v_door_chargeport->SetValue(true);
         }
       else
         {
@@ -984,7 +1187,7 @@ void OvmsVehicleNissanLeaf::IncomingFrameCan1(CAN_frame_t* p_frame)
         StandardMetrics.ms_v_charge_climit->SetValue(current_limit);
         if (current_limit > 0 && current_limit <= 32)
           {
-          StandardMetrics.ms_v_charge_type->SetValue("type1");
+          //StandardMetrics.ms_v_charge_type->SetValue("type1");
           StandardMetrics.ms_v_charge_pilot->SetValue(true);
           }
         }
@@ -1071,13 +1274,13 @@ void OvmsVehicleNissanLeaf::IncomingFrameCan2(CAN_frame_t* p_frame)
         case 2: // Reverse
           StandardMetrics.ms_v_env_gear->SetValue(-1);
           StandardMetrics.ms_v_env_on->SetValue(true);
-          PollSetState(POLLSTATE_RUNNING);
+          if (m_enable_write) PollSetState(POLLSTATE_RUNNING);
           break;
         case 4: // Drive
         case 7: // Drive/B (ECO on some models)
           StandardMetrics.ms_v_env_gear->SetValue(1);
           StandardMetrics.ms_v_env_on->SetValue(true);
-          PollSetState(POLLSTATE_RUNNING);
+          if (m_enable_write) PollSetState(POLLSTATE_RUNNING);
           break;
         }
       break;
@@ -1161,18 +1364,18 @@ void OvmsVehicleNissanLeaf::IncomingFrameCan2(CAN_frame_t* p_frame)
         {
         case 0: // off
           vehicle_nissanleaf_car_on(false);
+          break;
         case 1: // accessory
-          //vehicle_nissanleaf_car_on(false);
-          StandardMetrics.ms_v_env_awake->SetValue(true);
         case 2: // on (not ready to drive)
-          //vehicle_nissanleaf_car_on(false);
           StandardMetrics.ms_v_env_awake->SetValue(true);
+          break;
         case 3: // ready to drive, is triggered on unlock
           StandardMetrics.ms_v_env_awake->SetValue(true);
           if (StandardMetrics.ms_v_env_footbrake->AsFloat() > 0) //check footbrake to avoid false positive
-          {
-          vehicle_nissanleaf_car_on(true);
-          }
+            {
+            vehicle_nissanleaf_car_on(true);
+            }
+          break;
         }
 
       break;
@@ -1187,6 +1390,7 @@ void OvmsVehicleNissanLeaf::IncomingFrameCan2(CAN_frame_t* p_frame)
 
 void OvmsVehicleNissanLeaf::SendCommand(RemoteCommand command)
   {
+  if (!m_enable_write) return; //disable commands unless canwrite is true
   unsigned char data[4];
   uint8_t length;
   canbus *tcuBus;
@@ -1323,6 +1527,7 @@ void OvmsVehicleNissanLeaf::Ticker10(uint32_t ticker)
     // the core framework?
     // perhaps interested code should be able to subscribe to "onChange" and
     // "onStale" events for each metric?
+    ESP_LOGD(TAG, "Poll state: %d", m_poll_state);
     if (StandardMetrics.ms_v_env_awake->AsBool() && StandardMetrics.ms_v_env_awake->IsStale())
       {
       StandardMetrics.ms_v_env_awake->SetValue(false);
@@ -1508,6 +1713,7 @@ OvmsVehicle::vehicle_command_t OvmsVehicleNissanLeaf::CommandWakeup()
   // The Gen 2 Wakeup frame works on some Gen1, and doesn't cause a problem
   // so we send it on all models. We have to take care to send it on the
   // correct can bus in newer cars.
+  if (!m_enable_write) return Fail; //disable commands unless canwrite is true
   ESP_LOGI(TAG, "Sending Gen 2 Wakeup Frame");
   int modelyear = MyConfig.GetParamValueInt("xnl", "modelyear", DEFAULT_MODEL_YEAR);
   canbus* tcuBus = modelyear >= 2016 ? m_can2 : m_can1;
@@ -1518,6 +1724,7 @@ OvmsVehicle::vehicle_command_t OvmsVehicleNissanLeaf::CommandWakeup()
 
 OvmsVehicle::vehicle_command_t OvmsVehicleNissanLeaf::RemoteCommandHandler(RemoteCommand command)
   {
+  if (!m_enable_write) return Fail; //disable commands unless canwrite is true
   ESP_LOGI(TAG, "RemoteCommandHandler");
   CommandWakeup();
   // The GEN 2 Nissan TCU module sends the command repeatedly, so we start
