@@ -1,6 +1,6 @@
 /*
 ;    Project:       Open Vehicle Monitor System
-;    Date:          14th March 2017
+;    Date:          3rd September 2020
 ;
 ;    Changes:
 ;    1.0  Initial release
@@ -8,6 +8,7 @@
 ;    (C) 2011       Michael Stegen / Stegen Electronics
 ;    (C) 2011-2017  Mark Webb-Johnson
 ;    (C) 2011        Sonny Chen @ EPRO/DX
+;    (C) 2020       Chris Staite
 ;
 ; Permission is hereby granted, free of charge, to any person obtaining a copy
 ; of this software and associated documentation files (the "Software"), to deal
@@ -26,52 +27,40 @@
 ; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 ; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 ; THE SOFTWARE.
-;
-; Portions of this are based on the work of Thomas Barth, and licensed
-; under MIT license.
-; Copyright (c) 2017, Thomas Barth, barth-dev.de
-; https://github.com/ThomasBarth/ESP32-CAN-Driver
 */
 
-#ifndef __ESP32CAN_H__
-#define __ESP32CAN_H__
+#include "vehicle_mgev.h"
+#include "mg_obd_pids.h"
+#include "metrics_standard.h"
 
-#include <stdint.h>
-#include "can.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
-#include "freertos/semphr.h"
-#include "freertos/task.h"
-#include "driver/gpio.h"
-#include "esp_intr.h"
-#include "soc/dport_reg.h"
-#include <math.h>
+namespace {
 
-class esp32can : public canbus
-  {
-  public:
-    esp32can(const char* name, int txpin, int rxpin);
-    ~esp32can();
+// The bitmasks for the doors being open on the BCM Door PID
+enum DoorMasks : unsigned char {
+    Driver = 1,
+    Passenger = 2,
+    RearLeft = 4,
+    RearRight = 8,
+    Bonnet = 16,
+    Boot = 32,
+    Locked = 128
+};
 
-  public:
-    esp_err_t Start(CAN_mode_t mode, CAN_speed_t speed);
-    esp_err_t Stop();
-    void InitController();
+}  // anon namespace
 
-  public:
-    esp_err_t Write(const CAN_frame_t* p_frame, TickType_t maxqueuewait=0);
-    void TxCallback(CAN_frame_t* p_frame, bool success);
-
-  protected:
-    esp_err_t WriteFrame(const CAN_frame_t* p_frame);
-
-  public:
-    void SetPowerMode(PowerMode powermode);
-
-  public:
-    gpio_num_t m_txpin;               // TX pin
-    gpio_num_t m_rxpin;               // RX pin
-    OvmsMutex m_write_mutex;
-  };
-
-#endif //#ifndef __ESP32CAN_H__
+void OvmsVehicleMgEv::IncomingBcmPoll(uint16_t pid, uint8_t* data, uint8_t length)
+{
+    switch (pid)
+    {
+        case bcmDoorPid:
+            StandardMetrics.ms_v_door_fl->SetValue(data[0] & Passenger);
+            StandardMetrics.ms_v_door_fr->SetValue(data[0] & Driver);
+            StandardMetrics.ms_v_door_rl->SetValue(data[0] & RearLeft);
+            StandardMetrics.ms_v_door_rr->SetValue(data[0] & RearRight);
+            StandardMetrics.ms_v_door_trunk->SetValue(data[0] & Boot);
+            break;
+        case bcmLightPid:
+            StandardMetrics.ms_v_env_headlights->SetValue(data[0] > 1);
+            break;
+    }    
+}

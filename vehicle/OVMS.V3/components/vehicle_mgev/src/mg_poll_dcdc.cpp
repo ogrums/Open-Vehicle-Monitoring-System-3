@@ -1,6 +1,6 @@
 /*
 ;    Project:       Open Vehicle Monitor System
-;    Date:          14th March 2017
+;    Date:          3rd September 2020
 ;
 ;    Changes:
 ;    1.0  Initial release
@@ -8,6 +8,7 @@
 ;    (C) 2011       Michael Stegen / Stegen Electronics
 ;    (C) 2011-2017  Mark Webb-Johnson
 ;    (C) 2011        Sonny Chen @ EPRO/DX
+;    (C) 2020       Chris Staite
 ;
 ; Permission is hereby granted, free of charge, to any person obtaining a copy
 ; of this software and associated documentation files (the "Software"), to deal
@@ -26,52 +27,28 @@
 ; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 ; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 ; THE SOFTWARE.
-;
-; Portions of this are based on the work of Thomas Barth, and licensed
-; under MIT license.
-; Copyright (c) 2017, Thomas Barth, barth-dev.de
-; https://github.com/ThomasBarth/ESP32-CAN-Driver
 */
 
-#ifndef __ESP32CAN_H__
-#define __ESP32CAN_H__
+#include "vehicle_mgev.h"
+#include "mg_obd_pids.h"
+#include "metrics_standard.h"
 
-#include <stdint.h>
-#include "can.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
-#include "freertos/semphr.h"
-#include "freertos/task.h"
-#include "driver/gpio.h"
-#include "esp_intr.h"
-#include "soc/dport_reg.h"
-#include <math.h>
+void OvmsVehicleMgEv::IncomingDcdcPoll(uint16_t pid, uint8_t* data, uint8_t length)
+{
+    uint16_t value = (data[0] << 8 | data[1]);
 
-class esp32can : public canbus
-  {
-  public:
-    esp32can(const char* name, int txpin, int rxpin);
-    ~esp32can();
-
-  public:
-    esp_err_t Start(CAN_mode_t mode, CAN_speed_t speed);
-    esp_err_t Stop();
-    void InitController();
-
-  public:
-    esp_err_t Write(const CAN_frame_t* p_frame, TickType_t maxqueuewait=0);
-    void TxCallback(CAN_frame_t* p_frame, bool success);
-
-  protected:
-    esp_err_t WriteFrame(const CAN_frame_t* p_frame);
-
-  public:
-    void SetPowerMode(PowerMode powermode);
-
-  public:
-    gpio_num_t m_txpin;               // TX pin
-    gpio_num_t m_rxpin;               // RX pin
-    OvmsMutex m_write_mutex;
-  };
-
-#endif //#ifndef __ESP32CAN_H__
+    switch (pid)
+    {
+        case dcdcLvCurrentPid:
+            // A massive guess that is probably very wrong
+            StandardMetrics.ms_v_env_charging12v->SetValue(value > 1);
+            StandardMetrics.ms_v_bat_12v_current->SetValue(value + 1);
+            break;
+        case dcdcPowerLoadPid:
+            m_dcdc_load->SetValue(value * 0.25);
+            break;
+        case dcdcTemperaturePid:
+            StandardMetrics.ms_v_inv_temp->SetValue(value - 40);
+            break;
+    }
+}
