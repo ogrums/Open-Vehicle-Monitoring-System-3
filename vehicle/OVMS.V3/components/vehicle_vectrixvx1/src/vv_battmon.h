@@ -31,5 +31,10 @@
 
 using namespace std;
 
+struct battery_cell
+{
+  UINT volt_act = 0; // current voltage in mV
+};
+
 
 #endif // __vv_battmon_h__

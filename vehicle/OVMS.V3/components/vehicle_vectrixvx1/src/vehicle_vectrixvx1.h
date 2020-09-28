@@ -69,9 +69,13 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
     virtual vehicle_command_t CommandStartBalance();
     virtual vehicle_command_t CommandStopBalance();
 
+
   protected:
     static size_t m_modifier;
     OvmsMetricString *m_version;
+    virtual void Ticker10(uint32_t ticker);
+    void SendRequestInfoBmsOne();
+    void SendRequestInfoBmsTwo();
 
   // --------------------------------------------------------------------------
   // General status
@@ -154,6 +158,11 @@ class OvmsVehicleVectrixVX1: public OvmsVehicle
     public:
       void BatteryInit();
       void BatteryReset();
+
+    protected:
+
+      #define BATT_CELLS      37
+      battery_cell jkbms_cell[BATT_CELLS];
 
   };
 

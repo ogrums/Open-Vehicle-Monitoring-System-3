@@ -72,8 +72,8 @@ OvmsVehicleVectrixVX1::OvmsVehicleVectrixVX1()
   memset(m_type,0,sizeof(m_type));
   m_charge_w = 0;
 
-  //StandardMetrics.ms_v_bat_12v_voltage->SetValue(12);
-  StandardMetrics.ms_v_bat_12v_voltage_alert->SetValue(false);
+  //StandardMetrics.ms_v_bat_12v_voltage->SetValue(12.6);
+  //StandardMetrics.ms_v_bat_12v_voltage_alert->SetValue(false);
   //StandardMetrics.ms_v_charge_type->SetValue(undefined);
 
   RegisterCanBus(1,CAN_MODE_ACTIVE,CAN_SPEED_250KBPS);

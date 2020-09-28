@@ -45,9 +45,16 @@ void OvmsVehicleVectrixVX1::BatteryInit()
   // BMS configuration:
   //    Note: layout currently fixed to 10 voltages + 1 temperature per module,
   //          this may need refinement for custom batteries
-  BmsSetCellArrangementVoltage(40, 10);
-  BmsSetCellArrangementTemperature(4, 1);
-  BmsSetCellLimitsVoltage(2.6, 3.60);
+  //BmsSetCellArrangementVoltage(40, 10);
+  //BmsSetCellArrangementTemperature(4, 1);
+  //BmsSetCellLimitsVoltage(2.6, 3.60);
+  //BmsSetCellLimitsTemperature(-5, 35);
+  //BmsSetCellDefaultThresholdsVoltage(0.020, 0.030);
+  //BmsSetCellDefaultThresholdsTemperature(2.0, 3.0);
+
+  BmsSetCellArrangementVoltage(37, 1);
+  BmsSetCellArrangementTemperature(2, 1);
+  BmsSetCellLimitsVoltage(3.2, 4.2);
   BmsSetCellLimitsTemperature(-5, 35);
   BmsSetCellDefaultThresholdsVoltage(0.020, 0.030);
   BmsSetCellDefaultThresholdsTemperature(2.0, 3.0);
@@ -63,4 +70,13 @@ void OvmsVehicleVectrixVX1::BatteryReset()
 
   BmsResetCellStats();
 
+}
+/**
+ * Ticker1: Called every second
+ */
+void OvmsVehicleVectrixVX1::Ticker10(uint32_t ticker)
+{
+  ESP_LOGD(TAG, "Send Request BMS");
+  SendRequestInfoBmsOne();
+  SendRequestInfoBmsTwo();
 }

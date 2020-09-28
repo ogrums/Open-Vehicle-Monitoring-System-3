@@ -339,9 +339,6 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan1(CAN_frame_t *p_frame) {
     int v1 = ((int)(CAN_BYTE(1) & 0xFF));
     BmsSetCellTemperature(k, v1);
     // ESP_LOGD(TAG, "BMS %01x %02x", k, v1);
-    // BmsSetCellTemperature(k+1, 0.0122 * ((v2 & 0x1FFF) - (v2 & 0x2000)));
-    // BmsSetCellTemperature(k+2, 0.0122 * ((v3 & 0x1FFF) - (v3 & 0x2000)));
-    // BmsSetCellTemperature(k+3, 0.0122 * ((v4 & 0x1FFF) - (v4 & 0x2000)));
     break;
   }
 
@@ -383,7 +380,9 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan2(CAN_frame_t *p_frame) {
 
   switch (p_frame->MsgID) {
 
-  case 0x001: // Adresse from 0x001 to 0x00F BMS JK-DZ08-BxA24S (x = 1, 2, 3 A equalizer)
+  //case 0x002: // Adresse BMS 0x002
+  //case 0x001: // Adresse from 0x001 to 0x00F BMS JK-DZ08-BxA24S (x = 1, 2, 3 A equalizer)
+  default:
    {
     // Response from request 0x001 : 0xFF (Len 1 byte)
     //
@@ -393,36 +392,172 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan2(CAN_frame_t *p_frame) {
     // Frame 3 : 0x03, Byte#1#2 Trigger Diff voltage mV, Byte#3#4 max balance current mA, Balanced switch, Nb of cells, Byte#7 nothing
     // Frame 4 : 0x04, cell Number, byte#2#3 cell voltage N mV, byte#4#5 cell voltage N+1 mV, byte#6#7 cell voltage N+2 mV
     // Notes :Equalization and alarm bytes "Balance with report"
-    //  BIT0 means equalized battery (0)Stanby / (1) charging
-    //  BIT1 means equalized battery (0) Stanby / (1) discharge
-    //  BIT4 Number of units set (0) correctly / (1) Bad
+    //  BIT0 means equalized battery (0) Stanby / (1) charging cell
+    //  BIT1 means equalized battery (0) Stanby / (1) discharge cell
+    //  BIT4 Number of units set (0) match correctly / (1) don't match
     //  BIT5 Wire Resistance is (0) normal / (1) Bad
     // Identify quantity is number of cell check by BMS, number of cells is the numer put in setting
     // The Cell Number N is the number of the firt cell voltage in the frame
     // Balanced Switch : 0x01 = On / 0x00 = Off
 
+    int bmsn = p_frame->MsgID;
+    //ESP_LOGD(TAG, "BMS Number : %02d", bmsn);
+
     switch (CAN_BYTE(0))
     {
       case 0x01: // Temperation °C, Total Voltage, Average Cell Voltage, Number Cell Check
       {
+        int tempjk = CAN_UINT(1); // Temperature Sensor
+        if (bmsn == 1) {
+          BmsSetCellTemperature(1, tempjk);
+        } else {
+          BmsSetCellTemperature(2, tempjk);
+        }
+        int totalvoltagejk = CAN_UINT(3); // Total Voltage BMS
+        int avgvoltagecell = CAN_UINT(5); // Average Voltage Cell
+        int detectedcell = CAN_BYTE(7); // Number of Cell detected
+        ESP_LOGD(TAG, "BMS Nb : %02d, Temp : %02d, TotalVoltage : %04d, AvgCellVolt : %04d, NbCell : %02d", bmsn, tempjk, totalvoltagejk, avgvoltagecell, detectedcell);
+
         break;
       }
       case 0x02: // Highest Cell Number, Lowest Cell Number, Status Equal, Max diff Volt mV, Equal Current mA
       {
+        int highestcell = CAN_BYTE(1); // Number highest Cell
+        int lowestcell = CAN_BYTE(2); // Number Lowest Cell
+        int balstatus = CAN_BYTE(3); // Balance status report
+        int voltdiff = CAN_UINT(4); // Largest volt Differential
+        int equalizcurrent = CAN_UINT(6); // Equalization current realtime
+        ESP_LOGD(TAG, "BMS NbH : %02d, NbL : %02d, BalStatus : %02x, VolDiff : %04d, EquaCurr : %04d", highestcell, lowestcell, balstatus, voltdiff, equalizcurrent);
         break;
       }
       case 0x03: // Setting BMS Trigger Diff Voltage mV, Max Balance Current Ma, Active Balanced, Nb cell Setting
       {
+        int triggerdiffvolt = CAN_UINT(1); // Trigger diff voltage for balancing
+        int maxbalcurr = CAN_UINT(3); // Max Current Set for balancing
+        int balswitch = CAN_BYTE(5); // Balancing switch 0x00 = Off; 0x01 = On
+        int nbcellset = CAN_BYTE(6); // Number Cells Set
+        ESP_LOGD(TAG, "BMS triggerV : %04d, MaxCurr : %04d, SwitchBal : %02x, NbCellSet : %02d", triggerdiffvolt, maxbalcurr, balswitch, nbcellset);
         break;
       }
       case 0x04: // Cell voltage N, N+1 and N+2 in mV
       {
-       int v1jk = CAN_UINT(2); // Cell N
-       int v2jk = CAN_UINT(4); // Cell N+1
-       int v3jk = CAN_UINT(6); // Cell N+2
+        switch (CAN_BYTE(1))
+        {
+          case 0x00: // Cells 1-3
+          {
+            if (bmsn == 2) {
+              jkbms_cell[20].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[21].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[22].volt_act = CAN_UINT(6); // Cell N+2
+            } else {
+              jkbms_cell[0].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[1].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[2].volt_act = CAN_UINT(6); // Cell N+2
+            }
+            break;
+          }
+          case 0x03: // Cells 4-6
+          {
+            if (bmsn == 2) {
+              jkbms_cell[23].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[24].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[25].volt_act = CAN_UINT(6); // Cell N+2
+            } else {
+              jkbms_cell[3].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[4].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[5].volt_act = CAN_UINT(6); // Cell N+2
+            }
+            break;
+          }
+          case 0x06: // Cells 7-9
+          {
+            if (bmsn == 2) {
+              jkbms_cell[26].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[27].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[28].volt_act = CAN_UINT(6); // Cell N+2
+            } else {
+              jkbms_cell[6].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[7].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[8].volt_act = CAN_UINT(6); // Cell N+2
+            }
+            break;
+          }
+          case 0x09: // Cells 10-12
+          {
+            if (bmsn == 2) {
+              jkbms_cell[29].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[30].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[31].volt_act = CAN_UINT(6); // Cell N+2
+            } else {
+              jkbms_cell[9].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[10].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[11].volt_act = CAN_UINT(6); // Cell N+2
+            }
+            break;
+          }
+          case 0x0C: // Cells 13-15
+          {
+            if (bmsn == 2) {
+              jkbms_cell[32].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[33].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[34].volt_act = CAN_UINT(6); // Cell N+2
+            } else {
+              jkbms_cell[12].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[13].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[14].volt_act = CAN_UINT(6); // Cell N+2
+            }
+            break;
+          }
+          case 0x0F: // Cells 16-18
+          {
+            if (bmsn == 2) {
+              jkbms_cell[35].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[36].volt_act = CAN_UINT(4); // Cell N+1
+              //jkbms_cell[37].volt_act = CAN_UINT(6); // Cell N+2
+            } else {
+              jkbms_cell[15].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[16].volt_act = CAN_UINT(4); // Cell N+1
+              jkbms_cell[17].volt_act = CAN_UINT(6); // Cell N+2
+            }
+            break;
+          }
+          case 0x12: // Cells 19-21
+          {
+            if (bmsn == 2) {
+              //jkbms_cell[38].volt_act = CAN_UINT(2); // Cell N
+              //jkbms_cell[39].volt_act = CAN_UINT(4); // Cell N+1
+              //jkbms_cell[40].volt_act = CAN_UINT(6); // Cell N+2
+            } else {
+              jkbms_cell[18].volt_act = CAN_UINT(2); // Cell N
+              jkbms_cell[19].volt_act = CAN_UINT(4); // Cell N+1
+              //jkbms_cell[20] = CAN_UINT(6); // Cell N+2
+            }
+            break;
+          }
+          case 0x15: // Cells 22-24
+          {
+            if (bmsn == 2) {
+              //jkbms_cell[41].volt_act = CAN_UINT(2); // Cell N
+              //jkbms_cell[42].volt_act = CAN_UINT(4); // Cell N+1
+              //jkbms_cell[43].volt_act = CAN_UINT(6); // Cell N+2
+            } else {
+              //jkbms_cell[21].volt_act = CAN_UINT(2); // Cell N
+              //jkbms_cell[22].volt_act = CAN_UINT(4); // Cell N+1
+              //jkbms_cell[23].volt_act = CAN_UINT(6); // Cell N+2
+            }
+            break;
+          }
+        }
+        int i;
+        for (i = 0; i < 37; i++) {
+          BmsSetCellVoltage(i, (float) jkbms_cell[i].volt_act * 0.001);
+          //BmsSetCellVoltage(k + 1, 0.001 * v1jk);
+          //BmsSetCellVoltage(k + 2, 0.001 * v2jk);
+          //BmsSetCellVoltage(k + 3, 0.001 * v3jk);
+          //ESP_LOGD(TAG, "BMS %02d, NbCell : %02x, CellN %04d %04d %04d", bmsn, k, v1jk, v2jk, v3jk);
+          //ESP_LOGD(TAG, "BMS %02d, Cells volt : %04d", i, jkbms_cell[i].volt_act);
+        }
 
-       int kjk = CAN_BYTE(1);
-       ESP_LOGD(TAG, "BMS %02x %03x %03x %03x", kjk, v1jk, v2jk, v3jk);
        break;
       }
       break;
@@ -430,10 +565,10 @@ void OvmsVehicleVectrixVX1::IncomingFrameCan2(CAN_frame_t *p_frame) {
     break;
   }
 
-  default:
-  {
-    break;
-  }
+  //default:
+  //{
+  //  break;
+  //}
 
  }
 }
@@ -450,7 +585,7 @@ OvmsVehicle::vehicle_command_t OvmsVehicleVectrixVX1::CommandStartBalance()
   frame.MsgID = 0x001;
   frame.data.u8[0] = 0xF6;
   frame.data.u8[1] = 0x01; // Active Balance
-  m_can1->Write(&frame);
+  m_can2->Write(&frame);
 
   return Success;
   }
@@ -467,7 +602,36 @@ OvmsVehicle::vehicle_command_t OvmsVehicleVectrixVX1::CommandStopBalance()
   frame.MsgID = 0x001;
   frame.data.u8[0] = 0xF6;
   frame.data.u8[1] = 0x00; // Stop Balance
-  m_can1->Write(&frame);
+  m_can2->Write(&frame);
 
   return Success;
+  }
+
+void OvmsVehicleVectrixVX1::SendRequestInfoBmsOne()
+  {
+  CAN_frame_t frame;
+  memset(&frame,0,sizeof(frame));
+
+  frame.origin = m_can2;
+  frame.FIR.U = 0;
+  frame.FIR.B.DLC = 1;
+  frame.FIR.B.FF = CAN_frame_std;
+  frame.MsgID = 0x001;
+  frame.data.u8[0] = 0xFF; //Request Info
+  m_can2->Write(&frame);
+
+  }
+void OvmsVehicleVectrixVX1::SendRequestInfoBmsTwo()
+  {
+  CAN_frame_t frame;
+  memset(&frame,0,sizeof(frame));
+
+  frame.origin = m_can2;
+  frame.FIR.U = 0;
+  frame.FIR.B.DLC = 1;
+  frame.FIR.B.FF = CAN_frame_std;
+  frame.MsgID = 0x002;
+  frame.data.u8[0] = 0xFF; //Request Info
+  m_can2->Write(&frame);
+
   }
