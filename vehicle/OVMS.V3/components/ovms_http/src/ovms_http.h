@@ -32,31 +32,54 @@
 #define __OVMS_HTTP_H__
 
 #include <string>
-#include "ovms_net.h"
+#include "ovms_netmanager.h"
 #include "ovms_buffer.h"
 
-class OvmsHttpClient : public OvmsNetTcpConnection
+class OvmsSyncHttpClient
   {
   public:
-    OvmsHttpClient();
-    OvmsHttpClient(std::string url, const char* method = "GET");
-    virtual ~OvmsHttpClient();
+    OvmsSyncHttpClient(bool buffer_body = true);
+    virtual ~OvmsSyncHttpClient();
 
   public:
-    virtual void Disconnect();
+    static void MongooseCallbackEntry(struct mg_connection *nc, int ev, void *ev_data);
+    virtual void MongooseCallback(struct mg_connection *nc, int ev, void *ev_data);
+    virtual void ConnectionLaunch();
+    virtual void ConnectionOk(struct mg_connection *nc);
+    virtual void ConnectionFailed(struct mg_connection *nc);
+    virtual void ConnectionTimeout(struct mg_connection *nc);
+    virtual void ConnectionClosed(struct mg_connection *nc);
+    virtual size_t ConnectionData(struct mg_connection *nc, uint8_t* data, size_t len);
+    virtual void ConnectionHeaders(struct mg_connection *nc);
+    virtual void ConnectionBodyStart(struct mg_connection *nc);
+    virtual void ConnectionBodyData(struct mg_connection *nc, uint8_t* data, size_t len);
+    virtual void ConnectionBodyFinish(struct mg_connection *nc);
 
   public:
     bool Request(std::string url, const char* method = "GET");
-    size_t BodyRead(void *buf, size_t nbyte);
-    int BodyHasLine();
-    std::string BodyReadLine();
-    size_t BodySize();
-    int ResponseCode();
+    std::string GetBodyAsString();
+    OvmsBuffer* GetBodyAsBuffer();
+    int GetResponseCode();
+    std::string GetError();
+    bool HasError();
+    size_t GetBodySize();
+    void Reset();
 
   protected:
+    bool m_buffer_body;
+    QueueHandle_t m_waitcompletion;
+    struct mg_connection *m_mgconn;
     OvmsBuffer* m_buf;
+    std::string m_body;
+    std::string m_url;
+    std::string m_server;
+    std::string m_path;
+    bool m_tls;
+    const char* m_method;
+    bool m_inheaders;
     size_t m_bodysize;
     int m_responsecode;
+    std::string m_error;
   };
 
 #endif //#ifndef __OVMS_HTTP_H__

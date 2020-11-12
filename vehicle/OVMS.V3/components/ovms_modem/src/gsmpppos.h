@@ -28,44 +28,43 @@
 ; THE SOFTWARE.
 */
 
-#ifndef __OVMS_NET_H__
-#define __OVMS_NET_H__
+#ifndef __GSM_PPPOS_H__
+#define __GSM_PPPOS_H__
 
-#include <stdint.h>
-#include "lwip/err.h"
-#include "lwip/sockets.h"
-#include "lwip/sys.h"
-#include "lwip/netdb.h"
-#include "lwip/dns.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "driver/uart.h"
+#include "tcpip_adapter.h"
+extern "C"
+  {
+#include "netif/ppp/pppos.h"
+#include "netif/ppp/ppp.h"
+#include "netif/ppp/pppapi.h"
+  };
+#include "gsmmux.h"
+#include "ovms.h"
 
-class OvmsNetConnection
+class GsmPPPOS : public InternalRamAllocated
   {
   public:
-    OvmsNetConnection();
-    virtual ~OvmsNetConnection();
+    GsmPPPOS(GsmMux* mux, int channel);
+    ~GsmPPPOS();
 
   public:
-    virtual bool IsOpen();
-    virtual void Disconnect();
-    virtual int Socket();
+    void IncomingData(uint8_t *data, size_t len);
+    void Initialise();
+    void Startup();
+    void Shutdown(bool hard=false);
+    const char* ErrCodeName(int errcode);
 
   public:
-    virtual ssize_t Write(const void *buf, size_t nbyte);
-    virtual size_t Read(void *buf, size_t nbyte);
-
-  protected:
-    int m_sock;
+    GsmMux*      m_mux;
+    int          m_channel;
+    ppp_pcb*     m_ppp;
+    struct netif m_ppp_netif;
+    bool         m_connected;
+    int          m_lasterrcode;
   };
 
-class OvmsNetTcpConnection : public OvmsNetConnection
-  {
-  public:
-    OvmsNetTcpConnection();
-    OvmsNetTcpConnection(const char* host, const char* service);
-    virtual ~OvmsNetTcpConnection();
-
-  public:
-    virtual bool Connect(const char* host, const char* service);
-  };
-
-#endif //#ifndef __OVMS_NET_H__
+#endif //#ifndef __GSM_PPPOS__

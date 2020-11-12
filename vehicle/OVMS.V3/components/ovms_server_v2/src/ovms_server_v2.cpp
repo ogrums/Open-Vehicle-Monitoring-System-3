@@ -696,17 +696,17 @@ void OvmsServerV2::ProcessCommand(const char* payload)
         *buffer << "MP-0 c" << command << ",1,No command";
       else
         {
-#ifdef CONFIG_OVMS_COMP_MODEM_SIMCOM
+#ifdef CONFIG_OVMS_COMP_MODEM
         *buffer << "AT+CUSD=1,\"" << sep+1 << "\",15\r\n";
         extram::string msg = buffer->str();
         buffer->str("");
-        if (MyPeripherals->m_simcom->txcmd(msg.c_str(), msg.length()))
+        if (MyPeripherals->m_modem->txcmd(msg.c_str(), msg.length()))
           *buffer << "MP-0 c" << command << ",0";
         else
           *buffer << "MP-0 c" << command << ",1,Cannot send command";
-#else // #ifdef CONFIG_OVMS_COMP_MODEM_SIMCOM
+#else // #ifdef CONFIG_OVMS_COMP_MODEM
         *buffer << "MP-0 c" << command << ",1,No modem";
-#endif // #ifdef CONFIG_OVMS_COMP_MODEM_SIMCOM
+#endif // #ifdef CONFIG_OVMS_COMP_MODEM
         }
       break;
     case 49: // Send raw AT command
@@ -1984,7 +1984,7 @@ OvmsServerV2Init::OvmsServerV2Init()
   ESP_LOGI(TAG, "Initialising OVMS V2 Server (6100)");
 
   OvmsCommand* cmd_server = MyCommandApp.FindCommand("server");
-  OvmsCommand* cmd_v2 = cmd_server->RegisterCommand("v2","OVMS Server V2 Protocol");
+  OvmsCommand* cmd_v2 = cmd_server->RegisterCommand("v2","OVMS Server V2 Protocol", ovmsv2_status, "", 0, 0, false);
   cmd_v2->RegisterCommand("start","Start an OVMS V2 Server Connection",ovmsv2_start);
   cmd_v2->RegisterCommand("stop","Stop an OVMS V2 Server Connection",ovmsv2_stop);
   cmd_v2->RegisterCommand("status","Show OVMS V2 Server connection status",ovmsv2_status);

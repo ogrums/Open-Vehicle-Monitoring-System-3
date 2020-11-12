@@ -802,7 +802,7 @@ OvmsVehicleFactory::OvmsVehicleFactory()
   m_currentvehicle = NULL;
   m_currentvehicletype.clear();
 
-  OvmsCommand* cmd_vehicle = MyCommandApp.RegisterCommand("vehicle","Vehicle framework");
+  OvmsCommand* cmd_vehicle = MyCommandApp.RegisterCommand("vehicle","Vehicle framework", vehicle_status, "", 0, 0, false);
   cmd_vehicle->RegisterCommand("module","Set (or clear) vehicle module",vehicle_module,"<type>",0,1);
   cmd_vehicle->RegisterCommand("list","Show list of available vehicle modules",vehicle_list);
   cmd_vehicle->RegisterCommand("status","Show vehicle module status",vehicle_status);
@@ -828,7 +828,7 @@ OvmsVehicleFactory::OvmsVehicleFactory()
 
   MyCommandApp.RegisterCommand("stat","Show vehicle status",vehicle_stat);
 
-  OvmsCommand* cmd_bms = MyCommandApp.RegisterCommand("bms","BMS framework");
+  OvmsCommand* cmd_bms = MyCommandApp.RegisterCommand("bms","BMS framework", bms_status, "", 0, 0, false);
   cmd_bms->RegisterCommand("status","Show BMS status",bms_status);
   cmd_bms->RegisterCommand("reset","Reset BMS statistics",bms_reset);
   cmd_bms->RegisterCommand("alerts","Show BMS alerts",bms_alerts);
@@ -850,7 +850,7 @@ OvmsVehicleFactory::OvmsVehicleFactory()
   dto->RegisterDuktapeFunction(DukOvmsVehicleStartCharge, 0, "StartCharge");
   dto->RegisterDuktapeFunction(DukOvmsVehicleStartCooldown, 0, "StartCooldown");
   dto->RegisterDuktapeFunction(DukOvmsVehicleStopCooldown, 0, "StopCooldown");
-  MyScripts.RegisterDuktapeObject(dto);
+  MyDuktape.RegisterDuktapeObject(dto);
 #endif // #ifdef CONFIG_OVMS_SC_JAVASCRIPT_DUKTAPE
   }
 
@@ -896,6 +896,7 @@ void OvmsVehicleFactory::SetVehicle(const char* type)
     delete m_currentvehicle;
     m_currentvehicle = NULL;
     m_currentvehicletype.clear();
+    MyEvents.SignalEvent("vehicle.type.cleared", NULL);
     }
   m_currentvehicle = NewVehicle(type);
   if (m_currentvehicle)
@@ -2048,13 +2049,13 @@ void OvmsVehicle::PollSetState(uint8_t state)
 /**
  * PollSetResponseSeparationTime: configure ISO TP multi frame response timing
  *  See: https://en.wikipedia.org/wiki/ISO_15765-2
- *  
+ *
  *  @param septime
  *    Separation Time (ST), the minimum delay time between frames. Default: 25 milliseconds
  *    ST values up to 127 (0x7F) specify the minimum number of milliseconds to delay between frames,
  *    while values in the range 241 (0xF1) to 249 (0xF9) specify delays increasing from
  *    100 to 900 microseconds.
- *  
+ *
  *  The configuration is kept unchanged over calls to PollSetPidList() or PollSetState().
  */
 void OvmsVehicle::PollSetResponseSeparationTime(uint8_t septime)
@@ -2199,9 +2200,9 @@ void OvmsVehicle::PollerReceive(CAN_frame_t* frame)
     }
 
 
-  // 
+  //
   // Get & validate ISO-TP meta data
-  // 
+  //
 
   uint8_t  tp_frametype;          // ISO-TP frame type (0…3)
   uint8_t  tp_frameindex;         // TP cyclic frame index (0…15)
@@ -2260,9 +2261,9 @@ void OvmsVehicle::PollerReceive(CAN_frame_t* frame)
     }
 
 
-  // 
+  //
   // Get & validate OBD/UDS meta data
-  // 
+  //
 
   uint8_t  response_type = 0;         // OBD/UDS response type tag (expected: 0x40 + request type)
   uint16_t response_pid = 0;          // OBD/UDS response PID (expected: request PID)
@@ -2307,9 +2308,9 @@ void OvmsVehicle::PollerReceive(CAN_frame_t* frame)
     }
 
 
-  // 
+  //
   // Process OBD/UDS payload
-  // 
+  //
 
   if (response_type == UDS_RESP_TYPE_NRC && error_type == m_poll_type)
     {
