@@ -652,11 +652,9 @@ void OvmsVehicleSmartED::IncomingFrameCan1(CAN_frame_t* p_frame) {
     {
       // 7a3 8 04 61 12 64 00 00 00 00
       if (d[0] == 0x04 && d[1] == 0x61 && d[2] == 0x12) {
-        //StandardMetrics.ms_v_env_cabintemp->SetValue(d[3]/10.0);
         StandardMetrics.ms_v_env_cabintemp->SetValue((float) CAN_UINT(3) / 10.0);
-        //ESP_LOGD(TAG, "%04x ", CAN_UINT(3));
       }
-      ESP_LOGD(TAG, "%03x 8 %02x %02x %02x %02x %02x %02x %02x %02x", p_frame->MsgID, d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
+      // ESP_LOGD(TAG, "%03x 8 %02x %02x %02x %02x %02x %02x %02x %02x", p_frame->MsgID, d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
       break;
     }
     default: {
@@ -759,7 +757,7 @@ void OvmsVehicleSmartED::Ticker10(uint32_t ticker) {
 
 void OvmsVehicleSmartED::Ticker60(uint32_t ticker) {
   if (StandardMetrics.ms_v_bat_soc->AsFloat(0) == 0) RestoreStatus();
-  if (mt_bus_awake->AsBool()) TempPoll();
+  if (mt_bus_awake->AsBool() && m_enable_write) TempPoll();
 #ifdef CONFIG_OVMS_COMP_MAX7317
   if (m_egpio_timer > 0) {
     if (--m_egpio_timer == 0) {
@@ -795,15 +793,16 @@ void OvmsVehicleSmartED::RestartNetwork() {
 }
 
 void OvmsVehicleSmartED::AutoSetRecu() {
-  if (StandardMetrics.ms_v_env_on->AsBool() && m_auto_set_recu && m_enable_write) {
-    if (StandardMetrics.ms_v_env_drivemode->AsInt(1) != 2) {
+  if (StandardMetrics.ms_v_env_on->AsBool() && mt_CEPC_Wippen->AsBool() && m_auto_set_recu && m_enable_write) {
+    if (StandardMetrics.ms_v_env_drivemode->AsInt(1) != 2 && !recuSet) {
       while(StandardMetrics.ms_v_env_drivemode->AsInt(1) != 2) {
         CommandSetRecu(true);
         vTaskDelay(50 / portTICK_PERIOD_MS);
       }
       MyEvents.SignalEvent("v-smarted.xse.recu.up",NULL);
+      recuSet = true;
     }
-  }
+  } else recuSet = false;
 }
 
 void OvmsVehicleSmartED::ShutDown() {
