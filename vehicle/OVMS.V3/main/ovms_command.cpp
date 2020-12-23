@@ -105,65 +105,6 @@ void OvmsWriter::SetSecure(bool secure)
   m_issecure = secure;
   }
 
-const std::string NameStringMap::m_null = std::string();
-
-const std::string& NameStringMap::FindUniquePrefix(const char* token) const
-  {
-  size_t len = strlen(token);
-  const std::string* found = &m_null;
-  for (const_iterator it = begin(); it != end(); ++it)
-    {
-    if (it->first.compare(0, len, token) == 0)
-      {
-      if (len == it->first.length())
-	return it->second;
-      if (found == &m_null)
-	return m_null;
-      else
-	found = &it->second;
-      }
-    }
-  return *found;
-  }
-
-bool NameStringMap::GetCompletion(OvmsWriter* writer, const char* token) const
-  {
-  unsigned int index = 0;
-  bool match = false;
-  writer->SetCompletion(index, NULL);
-  if (token)
-    {
-    size_t len = strlen(token);
-    for (const_iterator it = begin(); it != end(); ++it)
-      {
-      if (it->first.compare(0, len, token) == 0)
-        {
-	writer->SetCompletion(index++, it->first.c_str());
-        match = true;
-        }
-      }
-    }
-  return match;
-  }
-
-int NameStringMap::Validate(OvmsWriter* writer, int argc, const char* token, bool complete) const
-  {
-  if (complete)
-    {
-    if (!GetCompletion(writer, token))
-      return -1;
-    }
-  else
-    {
-    if (FindUniquePrefix(token).empty())
-      {
-      writer->printf("Error: %s is not defined\n", token);
-      return -1;
-      }
-    }
-  return argc;
-  }
-
 OvmsCommand* OvmsCommandMap::FindUniquePrefix(const char* key)
   {
   int len = strlen(key);
@@ -420,6 +361,7 @@ bool OvmsCommand::UnregisterCommand(const char* name)
 
 char ** OvmsCommand::Complete(OvmsWriter* writer, int argc, const char * const * argv)
   {
+  writer->SetCompletion(0, NULL);       // Start with no completion tokens
   if (m_validate)
     {
     int used = -1;
