@@ -110,10 +110,35 @@ void OvmsVehicle::IncomingPollError(canbus* bus, uint16_t type, uint16_t pid, ui
 
 
 /**
+ * IncomingPollTxCallback: poller TX callback (stub, override with vehicle implementation)
+ *  This is called by PollerTxCallback() on TX success/failure for a poller request.
+ *  You can use this to detect CAN bus issues, e.g. if the car switches off the OBD port.
+ *  
+ *  ATT: this is executed in the main CAN task context. Keep it simple.
+ *    Complex processing here will affect overall CAN performance.
+ *  
+ *  @param bus
+ *    CAN bus the current poll is done on
+ *  @param txid
+ *    The module TX ID of the current poll
+ *  @param type
+ *    OBD2 mode / UDS polling type, e.g. VEHICLE_POLL_TYPE_READDTC
+ *  @param pid
+ *    PID addressed (depending on the request type, may be none / 8 bit / 16 bit)
+ *  @param success
+ *    Frame transmission success
+ */
+void OvmsVehicle::IncomingPollTxCallback(canbus* bus, uint32_t txid, uint16_t type, uint16_t pid, bool success)
+  {
+  }
+
+
+/**
  * PollSetPidList: set the default bus and the polling list to process
  */
 void OvmsVehicle::PollSetPidList(canbus* bus, const poll_pid_t* plist)
   {
+  OvmsRecMutexLock slock(&m_poll_single_mutex);
   OvmsRecMutexLock lock(&m_poll_mutex);
   m_poll_bus = bus;
   m_poll_bus_default = bus;
@@ -122,6 +147,7 @@ void OvmsVehicle::PollSetPidList(canbus* bus, const poll_pid_t* plist)
   m_poll_sequence_cnt = 0;
   m_poll_wait = 0;
   m_poll_plcur = NULL;
+  m_poll_txmsgid = 0;
   }
 
 
@@ -132,12 +158,14 @@ void OvmsVehicle::PollSetState(uint8_t state)
   {
   if ((state < VEHICLE_POLL_NSTATES)&&(state != m_poll_state))
     {
+    OvmsRecMutexLock slock(&m_poll_single_mutex);
     OvmsRecMutexLock lock(&m_poll_mutex);
     m_poll_state = state;
     m_poll_ticker = 0;
     m_poll_sequence_cnt = 0;
     m_poll_wait = 0;
     m_poll_plcur = NULL;
+    m_poll_txmsgid = 0;
     }
   }
 
@@ -254,6 +282,7 @@ void OvmsVehicle::PollerSend(bool fromTicker)
       uint8_t* txdata;
       memset(&txframe,0,sizeof(txframe));
       txframe.origin = m_poll_bus;
+      txframe.callback = &m_poll_txcallback;
       txframe.FIR.B.FF = CAN_frame_std;
       txframe.FIR.B.DLC = 8;
 
@@ -294,13 +323,14 @@ void OvmsVehicle::PollerSend(bool fromTicker)
         memcpy(&txdata[2], m_poll_plcur->args.data, datalen);
         }
 
-      m_poll_bus->Write(&txframe);
+      m_poll_txmsgid = txframe.MsgID;
       m_poll_ml_frame = 0;
       m_poll_ml_offset = 0;
       m_poll_ml_remain = 0;
       m_poll_wait = 2;
       m_poll_plcur++;
       m_poll_sequence_cnt++;
+      m_poll_bus->Write(&txframe);
 
       return;
       }
@@ -314,6 +344,34 @@ void OvmsVehicle::PollerSend(bool fromTicker)
   m_poll_plcur = m_poll_plist;
   m_poll_ticker++;
   if (m_poll_ticker > 3600) m_poll_ticker -= 3600;
+  }
+
+
+/**
+ * PollerTxCallback: internal: process poll request callbacks
+ */
+void OvmsVehicle::PollerTxCallback(const CAN_frame_t* frame, bool success)
+  {
+  OvmsRecMutexLock lock(&m_poll_mutex);
+
+  // Check for a late callback:
+  if (!m_poll_wait || !m_poll_plist || frame->origin != m_poll_bus || frame->MsgID != m_poll_txmsgid)
+    return;
+
+  // On failure, try to speed up the current poll timeout:
+  if (!success)
+    {
+    m_poll_wait = 0;
+    if (m_poll_single_rxbuf)
+      {
+      m_poll_single_rxerr = POLLSINGLE_TXFAILURE;
+      m_poll_single_rxbuf = NULL;
+      m_poll_single_rxdone.Give();
+      }
+    }
+
+  // Forward to application:
+  IncomingPollTxCallback(m_poll_bus, m_poll_moduleid_sent, m_poll_type, m_poll_pid, success);
   }
 
 
@@ -485,8 +543,10 @@ void OvmsVehicle::PollerReceive(CAN_frame_t* frame, uint32_t msgid)
         m_poll_single_rxbuf = NULL;
         m_poll_single_rxdone.Give();
         }
-      // Forward:
-      IncomingPollError(frame->origin, m_poll_type, m_poll_pid, error_code);
+      else
+        {
+        IncomingPollError(frame->origin, m_poll_type, m_poll_pid, error_code);
+        }
       // abort:
       m_poll_ml_remain = 0;
       }
@@ -514,8 +574,10 @@ void OvmsVehicle::PollerReceive(CAN_frame_t* frame, uint32_t msgid)
         m_poll_single_rxdone.Give();
         }
       }
-    // Forward:
-    IncomingPollReply(frame->origin, m_poll_type, m_poll_pid, response_data, response_datalen, m_poll_ml_remain);
+    else
+      {
+      IncomingPollReply(frame->origin, m_poll_type, m_poll_pid, response_data, response_datalen, m_poll_ml_remain);
+      }
     }
   else
     {
@@ -620,7 +682,10 @@ void OvmsVehicle::PollerReceive(CAN_frame_t* frame, uint32_t msgid)
  *  @param timeout_ms   Timeout for poller/response in milliseconds
  *  @param protocol     Protocol variant: ISOTP_STD / ISOTP_EXTADR
  *  
- *  @return             0 = OK, -1 = timeout/poller unavailable, else UDS NRC detail code
+ *  @return             POLLSINGLE_OK         (0)   -- success, response is valid
+ *                      POLLSINGLE_TIMEOUT    (-1)  -- timeout/poller unavailable
+ *                      POLLSINGLE_TXFAILURE  (-2)  -- CAN transmission failure
+ *                      else                  (>0)  -- UDS NRC detail code
  *                      Note: response is only valid with return value 0
  */
 int OvmsVehicle::PollSingleRequest(canbus* bus, uint32_t txid, uint32_t rxid,
@@ -629,7 +694,14 @@ int OvmsVehicle::PollSingleRequest(canbus* bus, uint32_t txid, uint32_t rxid,
   {
   if (!m_ready)
     return -1;
-  OvmsMutexLock slock(&m_poll_single_mutex, pdMS_TO_TICKS(timeout_ms));
+
+  if (!m_registeredlistener)
+    {
+    m_registeredlistener = true;
+    MyCan.RegisterListener(m_rxqueue);
+    }
+
+  OvmsRecMutexLock slock(&m_poll_single_mutex, pdMS_TO_TICKS(timeout_ms));
   if (!slock.IsLocked())
     return -1;
 
@@ -675,8 +747,9 @@ int OvmsVehicle::PollSingleRequest(canbus* bus, uint32_t txid, uint32_t rxid,
   uint32_t          p_ticker = m_poll_ticker;
 
   // start single poll:
-  m_poll_single_rxbuf = &response;
   PollSetPidList(bus, poll);
+  m_poll_single_rxdone.Take(0);
+  m_poll_single_rxbuf = &response;
   PollerSend(true);
   m_poll_mutex.Unlock();
 
@@ -688,7 +761,46 @@ int OvmsVehicle::PollSingleRequest(canbus* bus, uint32_t txid, uint32_t rxid,
   PollSetPidList(p_bus, p_list);
   m_poll_plcur = p_plcur;
   m_poll_ticker = p_ticker;
+  m_poll_single_rxbuf = NULL;
   m_poll_mutex.Unlock();
 
-  return (rxok == pdFALSE) ? -1 : (int)m_poll_single_rxerr;
+  return (rxok == pdFALSE) ? -1 : m_poll_single_rxerr;
+  }
+
+
+/**
+ * PollSingleRequest: perform prioritized synchronous single OBD2/UDS request
+ *  Convenience wrapper for standard PID polls, see above for main implementation.
+ *  
+ *  @param bus          CAN bus to use for the request
+ *  @param txid         CAN ID to send to (0x7df = broadcast)
+ *  @param rxid         CAN ID to expect response from (broadcast: 0)
+ *  @param polltype     OBD2/UDS poll type …
+ *  @param pid          … and PID to poll
+ *  @param response     Response buffer (binary string) (multiple response frames assembled)
+ *  @param timeout_ms   Timeout for poller/response in milliseconds
+ *  @param protocol     Protocol variant: ISOTP_STD / ISOTP_EXTADR
+ *  
+ *  @return             POLLSINGLE_OK         ( 0)  -- success, response is valid
+ *                      POLLSINGLE_TIMEOUT    (-1)  -- timeout/poller unavailable
+ *                      POLLSINGLE_TXFAILURE  (-2)  -- CAN transmission failure
+ *                      else                  (>0)  -- UDS NRC detail code
+ *                      Note: response is only valid with return value 0
+ */
+int OvmsVehicle::PollSingleRequest(canbus* bus, uint32_t txid, uint32_t rxid,
+                                   uint8_t polltype, uint16_t pid, std::string& response,
+                                   int timeout_ms /*=3000*/, uint8_t protocol /*=ISOTP_STD*/)
+  {
+  std::string request;
+  request = (char) polltype;
+  if (POLL_TYPE_HAS_16BIT_PID(polltype))
+    {
+    request += (char) (pid >> 8);
+    request += (char) (pid & 0xff);
+    }
+  else if (POLL_TYPE_HAS_8BIT_PID(polltype))
+    {
+    request += (char) (pid & 0xff);
+    }
+  return PollSingleRequest(bus, txid, rxid, request, response, timeout_ms, protocol);
   }

@@ -63,6 +63,15 @@ void OvmsVehicleFactory::vehicle_module(int verbosity, OvmsWriter* writer, OvmsC
     {
     MyVehicleFactory.SetVehicle(argv[0]);
     }
+  // output new status:
+  if (MyVehicleFactory.m_currentvehicle != NULL)
+    {
+    MyVehicleFactory.m_currentvehicle->Status(verbosity, writer);
+    }
+  else
+    {
+    writer->puts("No vehicle module selected");
+    }
   }
 
 void OvmsVehicleFactory::vehicle_list(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv)
@@ -450,7 +459,7 @@ void OvmsVehicleFactory::obdii_request(int verbosity, OvmsWriter* writer, OvmsCo
   {
   if (!MyVehicleFactory.m_currentvehicle)
     {
-    writer->puts("ERROR: no vehicle module selected");
+    writer->puts("ERROR: no vehicle module selected\nHint: use module 'NONE' (empty vehicle)");
     return;
     }
 
@@ -586,7 +595,14 @@ void OvmsVehicleFactory::obdii_request(int verbosity, OvmsWriter* writer, OvmsCo
   // execute request:
   int err = MyVehicleFactory.m_currentvehicle->PollSingleRequest(bus, txid, rxid,
     request, response, timeout_ms, protocol);
-  if (err < 0)
+
+  writer->printf("%x[%x] %s: ", txid, rxid, hexencode(request).c_str());
+  if (err == POLLSINGLE_TXFAILURE)
+    {
+    writer->puts("ERROR: transmission failure (CAN bus error)");
+    return;
+    }
+  else if (err < 0)
     {
     writer->puts("ERROR: timeout waiting for poller/response");
     return;

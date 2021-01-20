@@ -138,6 +138,11 @@ struct DashboardConfig;
 // Macro for poll_pid_t termination
 #define POLL_LIST_END                   { 0, 0, 0x00, 0x00, { 0, 0, 0 }, 0, 0 }
 
+// PollSingleRequest specific result codes:
+#define POLLSINGLE_OK                   0 
+#define POLLSINGLE_TIMEOUT              -1
+#define POLLSINGLE_TXFAILURE            -2
+
 
 // Standard MSG protocol commands:
 
@@ -185,6 +190,7 @@ class OvmsVehicle : public InternalRamAllocated
     OvmsVehicle();
     virtual ~OvmsVehicle();
     virtual const char* VehicleShortName();
+    virtual const char* VehicleType();
 
   protected:
     QueueHandle_t m_rxqueue;
@@ -350,6 +356,16 @@ class OvmsVehicle : public InternalRamAllocated
 #endif // #ifdef CONFIG_OVMS_COMP_TPMS
 
   public:
+    virtual std::vector<std::string> GetTpmsLayout();
+
+  protected:
+    uint32_t m_tpms_lastcheck;              // monotonictime of last TPMS alert check
+    std::vector<short> m_tpms_laststate;    // last TPMS alert state for change detection
+
+  protected:
+    virtual void NotifyTpmsAlerts();
+
+  public:
     virtual vehicle_command_t CommandStat(int verbosity, OvmsWriter* writer);
     virtual vehicle_command_t ProcessMsgCommand(std::string &result, int command, const char* args);
 
@@ -411,9 +427,9 @@ class OvmsVehicle : public InternalRamAllocated
     uint8_t           m_poll_fc_septime;      // Flow control separation time for multi frame responses
 
   private:
-    OvmsMutex         m_poll_single_mutex;    // PollSingleRequest() concurrency protection
+    OvmsRecMutex      m_poll_single_mutex;    // PollSingleRequest() concurrency protection
     std::string*      m_poll_single_rxbuf;    // … response buffer
-    uint16_t          m_poll_single_rxerr;    // … response error code (NRC)
+    int               m_poll_single_rxerr;    // … response error code (NRC) / TX failure code
     OvmsSemaphore     m_poll_single_rxdone;   // … response done (ok/error)
 
   protected:
@@ -423,7 +439,20 @@ class OvmsVehicle : public InternalRamAllocated
     void PollSetResponseSeparationTime(uint8_t septime);
     int PollSingleRequest(canbus* bus, uint32_t txid, uint32_t rxid,
                       std::string request, std::string& response,
-                      int timeout_ms /*=3000*/, uint8_t protocol /*=ISOTP_STD*/);
+                      int timeout_ms=3000, uint8_t protocol=ISOTP_STD);
+    int PollSingleRequest(canbus* bus, uint32_t txid, uint32_t rxid,
+                      uint8_t polltype, uint16_t pid, std::string& response,
+                      int timeout_ms=3000, uint8_t protocol=ISOTP_STD);
+
+  private:
+    CanFrameCallback  m_poll_txcallback;      // Poller CAN TxCallback
+    uint32_t          m_poll_txmsgid;         // Poller last TX CAN ID (frame MsgID)
+
+  private:
+    void PollerTxCallback(const CAN_frame_t* frame, bool success);
+  protected:
+    virtual void IncomingPollTxCallback(canbus* bus, uint32_t txid, uint16_t type, uint16_t pid, bool success);
+
 
   // BMS helpers
   protected:

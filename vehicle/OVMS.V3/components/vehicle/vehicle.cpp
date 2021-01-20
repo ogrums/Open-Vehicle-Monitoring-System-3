@@ -246,6 +246,9 @@ static void OvmsVehicleRxTask(void *pvParameters)
 
 OvmsVehicle::OvmsVehicle()
   {
+  using std::placeholders::_1;
+  using std::placeholders::_2;
+
   m_can1 = NULL;
   m_can2 = NULL;
   m_can3 = NULL;
@@ -262,6 +265,7 @@ OvmsVehicle::OvmsVehicle()
   m_poll_state = 0;
   m_poll_bus = NULL;
   m_poll_bus_default = NULL;
+  m_poll_txcallback = std::bind(&OvmsVehicle::PollerTxCallback, this, _1, _2);
   m_poll_plist = NULL;
   m_poll_plcur = NULL;
   m_poll_ticker = 0;
@@ -333,12 +337,12 @@ OvmsVehicle::OvmsVehicle()
   m_brakelight_basepwr = 0;
   m_brakelight_ignftbrk = false;
 
+  m_tpms_lastcheck = 0;
+
   m_rxqueue = xQueueCreate(CONFIG_OVMS_VEHICLE_CAN_RX_QUEUE_SIZE,sizeof(CAN_frame_t));
   xTaskCreatePinnedToCore(OvmsVehicleRxTask, "OVMS Vehicle",
     CONFIG_OVMS_VEHICLE_RXTASK_STACK, (void*)this, 10, &m_rxtask, CORE(1));
 
-  using std::placeholders::_1;
-  using std::placeholders::_2;
   MyEvents.RegisterEvent(TAG, "ticker.1", std::bind(&OvmsVehicle::VehicleTicker1, this, _1, _2));
   MyEvents.RegisterEvent(TAG, "config.changed", std::bind(&OvmsVehicle::VehicleConfigChanged, this, _1, _2));
   MyEvents.RegisterEvent(TAG, "config.mounted", std::bind(&OvmsVehicle::VehicleConfigChanged, this, _1, _2));
@@ -424,6 +428,11 @@ const char* OvmsVehicle::VehicleShortName()
   return MyVehicleFactory.ActiveVehicleName();
   }
 
+const char* OvmsVehicle::VehicleType()
+  {
+  return MyVehicleFactory.ActiveVehicleType();
+  }
+
 void OvmsVehicle::RxTask()
   {
   CAN_frame_t frame;
@@ -475,7 +484,7 @@ void OvmsVehicle::IncomingFrameCan4(CAN_frame_t* p_frame)
 
 void OvmsVehicle::Status(int verbosity, OvmsWriter* writer)
   {
-  writer->printf("Vehicle module %s loaded and running\n", VehicleShortName());
+  writer->printf("Vehicle module '%s' (code %s) loaded and running\n", VehicleShortName(), VehicleType());
   }
 
 void OvmsVehicle::RegisterCanBus(int bus, CAN_mode_t mode, CAN_speed_t speed, dbcfile* dbcfile)
@@ -634,6 +643,27 @@ void OvmsVehicle::VehicleTicker1(std::string event, void* data)
     m_bms_talerts_new = 0;
     }
 
+  // TPMS alerts:
+  if (StdMetrics.ms_v_tpms_alert->LastModified() > m_tpms_lastcheck)
+    {
+    m_tpms_lastcheck = StdMetrics.ms_v_tpms_alert->LastModified();
+    auto tpms_state = StdMetrics.ms_v_tpms_alert->AsVector();
+    m_tpms_laststate.resize(tpms_state.size());
+    bool notify = false;
+    for (int i = 0; i < tpms_state.size(); i++)
+      {
+      if (tpms_state[i] > m_tpms_laststate[i])
+        notify = true;
+      m_tpms_laststate[i] = tpms_state[i];
+      }
+    if (notify)
+      {
+      MyEvents.SignalEvent("vehicle.alert.tpms", NULL);
+      if (m_autonotifications && MyConfig.GetParamValueBool("vehicle", "tpms.alerts.enabled", true))
+        NotifyTpmsAlerts();
+      }
+    }
+
   // Idle alert:
   if (!StdMetrics.ms_v_env_awake->AsBool() || StdMetrics.ms_v_pos_speed->AsFloat() > 0)
     {
@@ -761,6 +791,49 @@ void OvmsVehicle::NotifyVehicleIdling()
   MyNotify.NotifyString("alert", "vehicle.idle", "Vehicle is idling / stopped turned on");
   }
 
+std::vector<std::string> OvmsVehicle::GetTpmsLayout()
+  {
+  return { "FL", "FR", "RL", "RR" };
+  }
+
+void OvmsVehicle::NotifyTpmsAlerts()
+  {
+  int maxlevel = 0;
+  for (int i = 0; i < m_tpms_laststate.size(); i++)
+    {
+    if (m_tpms_laststate[i] > maxlevel)
+      maxlevel = m_tpms_laststate[i];
+    }
+  if (maxlevel == 0)
+    return;
+
+  StringWriter buf(200);
+  std::vector<std::string> wheels = GetTpmsLayout();
+  const char* alertlevel[] = { "OK", "WARNING", "ALERT" };
+
+  buf.printf("TPMS %s:\n", maxlevel == 1 ? "INFO" : "ALERT");
+
+  for (int i = 0; i < m_tpms_laststate.size(); i++)
+    {
+    if (m_tpms_laststate[i])
+      {
+      buf.printf("%s wheel %s:", wheels[i].c_str(), alertlevel[m_tpms_laststate[i]]);
+      if (StdMetrics.ms_v_tpms_health->IsDefined())
+        buf.printf(" Health=%s", StdMetrics.ms_v_tpms_health->ElemAsUnitString(i, "", Native, 0).c_str());
+      if (StdMetrics.ms_v_tpms_pressure->IsDefined())
+        buf.printf(" Pressure=%s", StdMetrics.ms_v_tpms_pressure->ElemAsUnitString(i, "", Native, 1).c_str());
+      if (StdMetrics.ms_v_tpms_temp->IsDefined())
+        buf.printf(" Temp=%sC", StdMetrics.ms_v_tpms_temp->ElemAsString(i, "", Native, 1).c_str());
+      buf.append("\n");
+      }
+    }
+
+  if (maxlevel == 1)
+    MyNotify.NotifyString("info", "tpms.warning", buf.c_str());
+  else
+    MyNotify.NotifyString("alert", "tpms.alert", buf.c_str());
+  }
+
 void OvmsVehicle::NotifyBmsAlerts()
   {
   StringWriter buf(200);
@@ -775,7 +848,8 @@ void OvmsVehicle::CalculateEfficiency()
   float consumption = 0;
   if (StdMetrics.ms_v_pos_speed->AsFloat() >= 5)
     consumption = StdMetrics.ms_v_bat_power->AsFloat(0, Watts) / StdMetrics.ms_v_pos_speed->AsFloat();
-  StdMetrics.ms_v_bat_consumption->SetValue((StdMetrics.ms_v_bat_consumption->AsFloat() * 4 + consumption) / 5);
+  StdMetrics.ms_v_bat_consumption->SetValue(
+    TRUNCPREC((StdMetrics.ms_v_bat_consumption->AsFloat() * 4 + consumption) / 5, 1));
   }
 
 OvmsVehicle::vehicle_command_t OvmsVehicle::CommandSetChargeMode(vehicle_mode_t mode)
@@ -1150,15 +1224,17 @@ void OvmsVehicle::MetricModified(OvmsMetric* metric)
     }
   else if (metric == StandardMetrics.ms_v_charge_mode)
     {
-    const char* m = metric->AsString().c_str();
-    MyEvents.SignalEvent("vehicle.charge.mode",(void*)m, strlen(m)+1);
-    NotifiedVehicleChargeMode(m);
+    std::string m = metric->AsString();
+    const char* mc = m.c_str();
+    MyEvents.SignalEvent("vehicle.charge.mode",(void*)mc, strlen(mc)+1);
+    NotifiedVehicleChargeMode(mc);
     }
   else if (metric == StandardMetrics.ms_v_charge_state)
     {
-    const char* m = metric->AsString().c_str();
-    MyEvents.SignalEvent("vehicle.charge.state",(void*)m, strlen(m)+1);
-    if (strcmp(m,"done")==0)
+    std::string m = metric->AsString();
+    const char* mc = m.c_str();
+    MyEvents.SignalEvent("vehicle.charge.state",(void*)mc, strlen(mc)+1);
+    if (m == "done")
       {
       StandardMetrics.ms_v_charge_duration_full->SetValue(0);
       StandardMetrics.ms_v_charge_duration_range->SetValue(0);
@@ -1166,11 +1242,11 @@ void OvmsVehicle::MetricModified(OvmsMetric* metric)
       }
     if (m_autonotifications)
       {
-      m_chargestate_ticker = GetNotifyChargeStateDelay(m);
+      m_chargestate_ticker = GetNotifyChargeStateDelay(mc);
       if (m_chargestate_ticker == 0)
         NotifyChargeState();
       }
-    NotifiedVehicleChargeState(m);
+    NotifiedVehicleChargeState(mc);
     }
   else if (metric == StandardMetrics.ms_v_pos_acceleration)
     {
@@ -1296,16 +1372,16 @@ bool OvmsVehicle::SetBrakelight(int on)
 
 void OvmsVehicle::NotifyChargeState()
   {
-  const char* m = StandardMetrics.ms_v_charge_state->AsString().c_str();
-  if (strcmp(m,"done")==0)
+  std::string m = StandardMetrics.ms_v_charge_state->AsString();
+  if (m == "done")
     NotifyChargeDone();
-  else if (strcmp(m,"stopped")==0)
+  else if (m == "stopped")
     NotifyChargeStopped();
-  else if (strcmp(m,"charging")==0)
+  else if (m == "charging")
     NotifyChargeStart();
-  else if (strcmp(m,"topoff")==0)
+  else if (m == "topoff")
     NotifyChargeStart();
-  else if (strcmp(m,"heating")==0)
+  else if (m == "heating")
     NotifyHeatingStart();
   }
 
