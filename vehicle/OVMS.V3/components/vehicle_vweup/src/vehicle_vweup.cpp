@@ -72,7 +72,7 @@
 #include <string>
 static const char *TAG = "v-vweup";
 
-#define VERSION "0.8.1"
+#define VERSION "0.9.2"
 
 #include <stdio.h>
 #include <string>
@@ -257,6 +257,7 @@ void OvmsVehicleVWeUp::ConfigChanged(OvmsConfigParam *param)
   vweup_cc_temp_int = MyConfig.GetParamValueInt("xvu", "cc_temp", 22);
   int cell_interval_drv = MyConfig.GetParamValueInt("xvu", "cell_interval_drv", 15);
   int cell_interval_chg = MyConfig.GetParamValueInt("xvu", "cell_interval_chg", 60);
+  int cell_interval_awk = MyConfig.GetParamValueInt("xvu", "cell_interval_awk", 60);
 
   bool do_obd_init = (
     (!vweup_enable_obd && vweup_enable_obd_new) ||
@@ -264,13 +265,15 @@ void OvmsVehicleVWeUp::ConfigChanged(OvmsConfigParam *param)
     (vweup_modelyear < 2020 && vweup_modelyear_new > 2019) ||
     (vweup_modelyear_new < 2020 && vweup_modelyear > 2019) ||
     (cell_interval_drv != m_cfg_cell_interval_drv) ||
-    (cell_interval_chg != m_cfg_cell_interval_chg));
+    (cell_interval_chg != m_cfg_cell_interval_chg) ||
+    (cell_interval_awk != m_cfg_cell_interval_awk));
 
   vweup_modelyear = vweup_modelyear_new;
   vweup_enable_obd = vweup_enable_obd_new;
   vweup_enable_t26 = vweup_enable_t26_new;
   m_cfg_cell_interval_drv = cell_interval_drv;
   m_cfg_cell_interval_chg = cell_interval_chg;
+  m_cfg_cell_interval_awk = cell_interval_awk;
 
   // Connectors:
   vweup_con = vweup_enable_obd * 2 + vweup_enable_t26;
@@ -346,20 +349,9 @@ void OvmsVehicleVWeUp::ConfigChanged(OvmsConfigParam *param)
 
 void OvmsVehicleVWeUp::Ticker1(uint32_t ticker)
 {
-  if (vweup_con == CON_OBD)
-  {
-    // only OBD connected -> get car state by polling OBD
-    OBDCheckCarState();
-  }
-  else
+  if (HasT26())
   {
     // T26 connected
-
-    // This is just to be sure that we really have an asleep message. It has delay of 120 sec.
-    // Do we still need this?
-    if (StandardMetrics.ms_v_env_awake->IsStale()) {
-      StandardMetrics.ms_v_env_awake->SetValue(false);
-    }
 
     // Autodisable climate control ticker (30 min.)
     if (vweup_remote_climate_ticker != 0) {
@@ -379,6 +371,32 @@ void OvmsVehicleVWeUp::Ticker1(uint32_t ticker)
       vweup_cc_on = false;
       ocu_awake = true;
     }
+    if (StdMetrics.ms_v_bat_12v_voltage->AsFloat() < 13 && !t26_ring_awake && StandardMetrics.ms_v_env_charging12v->AsBool()) {
+      t26_12v_boost_cnt++;    // Wait for 12v voltage to come up to 13.2v while getting a boost
+      if (t26_12v_boost_cnt > 20) {
+         ESP_LOGI(TAG, "Car stopped itself charging the 12v battery");
+         StandardMetrics.ms_v_env_charging12v->SetValue(false);
+         StandardMetrics.ms_v_env_aux12v->SetValue(false);
+         t26_12v_boost = false;
+         t26_12v_boost_cnt = 0;
+
+         // Clear powers & currents that are not supported by T26:
+         StdMetrics.ms_v_bat_current->SetValue(0);
+         StdMetrics.ms_v_bat_power->SetValue(0);
+         StdMetrics.ms_v_bat_12v_current->SetValue(0);
+         StdMetrics.ms_v_charge_12v_current->SetValue(0);
+         StdMetrics.ms_v_charge_12v_power->SetValue(0);
+
+         PollSetState(VWEUP_OFF);
+      }
+    }
+    if (StdMetrics.ms_v_bat_12v_voltage->AsFloat() >= 13 && t26_12v_boost_cnt == 0) {
+       t26_12v_boost_cnt = 20;
+    }
+    if (t26_12v_boost_last_cnt == t26_12v_boost_cnt && t26_12v_boost_cnt != 0 && t26_12v_boost_cnt != 20) {    // We are not waiting to charging 12v to come up anymore
+       t26_12v_boost_cnt = 0;
+    }
+    t26_12v_boost_last_cnt = t26_12v_boost_cnt;
   }
 }
 
@@ -389,8 +407,8 @@ void OvmsVehicleVWeUp::Ticker1(uint32_t ticker)
 int OvmsVehicleVWeUp::GetNotifyChargeStateDelay(const char *state)
 {
   // With OBD data, wait for first voltage & current when starting the charge:
-  if (vweup_con == CON_OBD && strcmp(state, "charging") == 0) {
-    return 5;
+  if (HasOBD() && strcmp(state, "charging") == 0) {
+    return 6;
   }
   else {
     return 3;
@@ -434,10 +452,13 @@ void OvmsVehicleVWeUp::ResetChargeCounters()
 {
   // Clear per charge counter:
   StdMetrics.ms_v_charge_kwh->SetValue(0);
+  StdMetrics.ms_v_charge_kwh_grid->SetValue(0);
+  m_charge_kwh_grid = 0;
 
   // Get charge start reference as far as available:
   //  (if we don't have it yet, IncomingPollReply() will set it ASAP)
   m_energy_charged_start = StdMetrics.ms_v_bat_energy_recd_total->AsFloat();
+  m_charge_kwh_grid_start = StdMetrics.ms_v_charge_kwh_grid_total->AsFloat();
 
-  ESP_LOGD(TAG, "Charge start ref: er=%f", m_energy_charged_start);
+  ESP_LOGD(TAG, "Charge start ref: er=%f gr=%f", m_energy_charged_start, m_charge_kwh_grid_start);
 }

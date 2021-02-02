@@ -162,7 +162,9 @@ class OvmsMetric
     virtual bool CheckPersist();
     virtual bool IsDefined();
     virtual bool IsFirstDefined();
+    virtual bool IsPersistent();
     virtual bool IsStale();
+    virtual bool IsFresh();
     virtual void RefreshPersist();
     virtual void SetStale(bool stale);
     virtual void SetAutoStale(uint16_t seconds);
@@ -937,7 +939,7 @@ class OvmsMetrics
       {
       OvmsMetricBitset<N> *m = (OvmsMetricBitset<N> *)Find(metric);
       if (m==NULL) m = new OvmsMetricBitset<N>(metric, autostale, units);
-      if (value)
+      if (value && !m->IsDefined())
         m->SetValue(value);
       return m;
       }
@@ -946,7 +948,7 @@ class OvmsMetrics
       {
       OvmsMetricSet<ElemType> *m = (OvmsMetricSet<ElemType> *)Find(metric);
       if (m==NULL) m = new OvmsMetricSet<ElemType>(metric, autostale, units);
-      if (value)
+      if (value && !m->IsDefined())
         m->SetValue(value);
       return m;
       }
@@ -955,7 +957,7 @@ class OvmsMetrics
       {
       OvmsMetricVector<ElemType> *m = (OvmsMetricVector<ElemType> *)Find(metric);
       if (m==NULL) m = new OvmsMetricVector<ElemType>(metric, autostale, units, persist);
-      if (value)
+      if (value && !m->IsDefined())
         m->SetValue(value);
       return m;
       }
