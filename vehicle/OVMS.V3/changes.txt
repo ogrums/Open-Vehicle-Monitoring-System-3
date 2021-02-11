@@ -1,6 +1,18 @@
 Open Vehicle Monitor System v3 - Change log
 
 ????-??-?? ???  ???????  OTA release
+- BMS: optional cell voltage & temperature logging
+  New configs:
+    [vehicle] bms.log.voltage.interval    Interval [s] for cell voltage logging, default 0=disable
+    [vehicle] bms.log.temp.interval       Interval [s] for cell temperature logging, default 0=disable
+- BMS: detection of inconsistent voltage series by gradient & stddev average deviation
+    thresholds, added pack metrics to battery monitor web UI, change cell warning & alert
+    thresholds to be applied exceeding stddev level
+  New metrics:
+    v.b.p.voltage.grad                    Cell voltage - gradient of current series [V]
+  New configs:
+    [vehicle] bms.dev.voltage.maxgrad     Max gradient for a valid series
+    [vehicle] bms.dev.voltage.maxsddev    Max stddev deviation from average for valid series
 - Events: added automatic events on v.e.aux12v changes.
   New events:
     vehicle.aux.12v.on
@@ -97,6 +109,8 @@ Open Vehicle Monitor System v3 - Change log
 - New vehicle: VW e-Up via OBD-II Port (VWUP.OBD)
 - New vehicle: MG ZS EV via OBD-II Port (MGEV)
 - New vehicle: BMW i3/i3s via OBD-II Port (BMWI3) 
+- Updated wolfssh and wolfssl so the restriction of clients to use
+  aes128-cbc cipher is no longer required.
 
 2020-09-02 MWJ  3.2.015  OTA release
 - Notify: add explicit channel exclusion config syntax

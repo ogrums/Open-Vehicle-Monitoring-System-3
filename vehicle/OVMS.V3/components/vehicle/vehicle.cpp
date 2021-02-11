@@ -48,22 +48,6 @@ static const char *TAG = "vehicle";
 #include <string_writer.h>
 #include "vehicle.h"
 
-#undef SQR
-#define SQR(n) ((n)*(n))
-#undef ABS
-#define ABS(n) (((n) < 0) ? -(n) : (n))
-#undef LIMIT_MIN
-#define LIMIT_MIN(n,lim) ((n) < (lim) ? (lim) : (n))
-#undef LIMIT_MAX
-#define LIMIT_MAX(n,lim) ((n) > (lim) ? (lim) : (n))
-
-#undef TRUNCPREC
-#define TRUNCPREC(fval,prec) (trunc((fval) * pow(10,(prec))) / pow(10,(prec)))
-#undef ROUNDPREC
-#define ROUNDPREC(fval,prec) (round((fval) * pow(10,(prec))) / pow(10,(prec)))
-#undef CEILPREC
-#define CEILPREC(fval,prec)  (ceil((fval)  * pow(10,(prec))) / pow(10,(prec)))
-
 
 OvmsVehicleFactory MyVehicleFactory __attribute__ ((init_priority (2000)));
 
@@ -294,6 +278,8 @@ OvmsVehicle::OvmsVehicle()
   m_bms_vdevmaxs = NULL;
   m_bms_valerts = NULL;
   m_bms_valerts_new = 0;
+  m_bms_vstddev_cnt = 0;
+  m_bms_vstddev_avg = 0;
   m_bms_has_voltages = false;
 
   m_bms_temperatures = NULL;
@@ -318,10 +304,15 @@ OvmsVehicle::OvmsVehicle()
   m_bms_limit_vmin = -1000;
   m_bms_limit_vmax = 1000;
 
-  m_bms_defthr_vwarn  = BMS_DEFTHR_VWARN;
-  m_bms_defthr_valert = BMS_DEFTHR_VALERT;
-  m_bms_defthr_twarn  = BMS_DEFTHR_TWARN;
-  m_bms_defthr_talert = BMS_DEFTHR_TALERT;
+  m_bms_defthr_vmaxgrad   = BMS_DEFTHR_VMAXGRAD;
+  m_bms_defthr_vmaxsddev  = BMS_DEFTHR_VMAXSDDEV;
+  m_bms_defthr_vwarn      = BMS_DEFTHR_VWARN;
+  m_bms_defthr_valert     = BMS_DEFTHR_VALERT;
+  m_bms_defthr_twarn      = BMS_DEFTHR_TWARN;
+  m_bms_defthr_talert     = BMS_DEFTHR_TALERT;
+
+  m_bms_vlog_last = 0;
+  m_bms_tlog_last = 0;
 
   m_minsoc = 0;
   m_minsoc_triggered = 0;
@@ -639,16 +630,8 @@ void OvmsVehicle::VehicleTicker1(std::string event, void* data)
       }
     }
 
-  // BMS alerts:
-  if (m_bms_valerts_new || m_bms_talerts_new)
-    {
-    ESP_LOGW(TAG, "BMS new alerts: %d voltages, %d temperatures", m_bms_valerts_new, m_bms_talerts_new);
-    MyEvents.SignalEvent("vehicle.alert.bms", NULL);
-    if (m_autonotifications && MyConfig.GetParamValueBool("vehicle", "bms.alerts.enabled", true))
-      NotifyBmsAlerts();
-    m_bms_valerts_new = 0;
-    m_bms_talerts_new = 0;
-    }
+  // BMS ticker:
+  BmsTicker();
 
   // TPMS alerts:
   if (StdMetrics.ms_v_tpms_alert->LastModified() > m_tpms_lastcheck)
@@ -839,13 +822,6 @@ void OvmsVehicle::NotifyTpmsAlerts()
     MyNotify.NotifyString("info", "tpms.warning", buf.c_str());
   else
     MyNotify.NotifyString("alert", "tpms.alert", buf.c_str());
-  }
-
-void OvmsVehicle::NotifyBmsAlerts()
-  {
-  StringWriter buf(200);
-  if (FormatBmsAlerts(COMMAND_RESULT_SMS, &buf, false))
-    MyNotify.NotifyString("alert", "batt.bms.alert", buf.c_str());
   }
 
 // Default efficiency calculation by speed & power per second, average smoothed over 5 seconds.
