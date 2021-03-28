@@ -72,7 +72,7 @@
 #include <string>
 static const char *TAG = "v-vweup";
 
-#define VERSION "0.10.2"
+#define VERSION "0.14.0"
 
 #include <stdio.h>
 #include <string>
@@ -138,6 +138,7 @@ OvmsVehicleVWeUp::OvmsVehicleVWeUp()
   vweup_con = 0;
   vweup_modelyear = 0;
 
+  m_use_phase = UP_None;
   m_obd_state = OBDS_Init;
 
   // Init metrics:
@@ -293,7 +294,8 @@ void OvmsVehicleVWeUp::ConfigChanged(OvmsConfigParam *param)
   if (vweup_modelyear > 2019)
   {
     // 32.3 kWh net / 36.8 kWh gross, 2P84S = 120 Ah, 260 km WLTP
-    StdMetrics.ms_v_bat_cac->SetValue(120 * sohfactor);
+    if (StdMetrics.ms_v_bat_cac->AsFloat() == 0)
+      StdMetrics.ms_v_bat_cac->SetValue(120 * sohfactor);
     StdMetrics.ms_v_bat_range_full->SetValue(260 * sohfactor);
     if (StdMetrics.ms_v_bat_range_ideal->AsFloat() == 0)
       StdMetrics.ms_v_bat_range_ideal->SetValue(260 * sohfactor * socfactor);
@@ -314,7 +316,8 @@ void OvmsVehicleVWeUp::ConfigChanged(OvmsConfigParam *param)
   else
   {
     // 16.4 kWh net / 18.7 kWh gross, 2P102S = 50 Ah, 160 km WLTP
-    StdMetrics.ms_v_bat_cac->SetValue(50 * sohfactor);
+    if (StdMetrics.ms_v_bat_cac->AsFloat() == 0)
+      StdMetrics.ms_v_bat_cac->SetValue(50 * sohfactor);
     StdMetrics.ms_v_bat_range_full->SetValue(160 * sohfactor);
     if (StdMetrics.ms_v_bat_range_ideal->AsFloat() == 0)
       StdMetrics.ms_v_bat_range_ideal->SetValue(160 * sohfactor * socfactor);
@@ -378,6 +381,24 @@ int OvmsVehicleVWeUp::GetNotifyChargeStateDelay(const char *state)
 
 
 /**
+ * SetUsePhase: track phase transitions between charging & driving
+ */
+void OvmsVehicleVWeUp::SetUsePhase(use_phase_t use_phase)
+{
+  if (m_use_phase == use_phase)
+    return;
+
+  // Phase transition: reset BMS statistics?
+  if (MyConfig.GetParamValueBool("xvu", "bms.autoreset")) {
+    ESP_LOGD(TAG, "SetUsePhase %d: resetting BMS statistics", use_phase);
+    BmsResetCellStats();
+  }
+
+  m_use_phase = use_phase;
+}
+
+
+/**
  * ResetTripCounters: called at trip start to set reference points
  *  Called by the connector subsystem detecting vehicle state changes,
  *  i.e. T26 has priority if available.
@@ -393,9 +414,11 @@ void OvmsVehicleVWeUp::ResetTripCounters()
 
   // Get trip start references as far as available:
   //  (if we don't have them yet, IncomingPollReply() will set them ASAP)
+  if (IsOBDReady()) {
+    m_soc_abs_start       = BatMgmtSoCAbs->AsFloat();
+  }
   m_odo_start           = StdMetrics.ms_v_pos_odometer->AsFloat();
   m_soc_norm_start      = StdMetrics.ms_v_bat_soc->AsFloat();
-  m_soc_abs_start       = BatMgmtSoCAbs->AsFloat();
   m_energy_recd_start   = StdMetrics.ms_v_bat_energy_recd_total->AsFloat();
   m_energy_used_start   = StdMetrics.ms_v_bat_energy_used_total->AsFloat();
   m_coulomb_recd_start  = StdMetrics.ms_v_bat_coulomb_recd_total->AsFloat();
@@ -421,8 +444,10 @@ void OvmsVehicleVWeUp::ResetChargeCounters()
 
   // Get charge start reference as far as available:
   //  (if we don't have it yet, IncomingPollReply() will set it ASAP)
+  if (IsOBDReady()) {
+    m_soc_abs_start         = BatMgmtSoCAbs->AsFloat();
+  }
   m_soc_norm_start        = StdMetrics.ms_v_bat_soc->AsFloat();
-  m_soc_abs_start         = BatMgmtSoCAbs->AsFloat();
   m_energy_charged_start  = StdMetrics.ms_v_bat_energy_recd_total->AsFloat();
   m_coulomb_charged_start = StdMetrics.ms_v_bat_coulomb_recd_total->AsFloat();
   m_charge_kwh_grid_start = StdMetrics.ms_v_charge_kwh_grid_total->AsFloat();
@@ -430,4 +455,117 @@ void OvmsVehicleVWeUp::ResetChargeCounters()
   ESP_LOGD(TAG, "Charge start ref: socnrm=%f socabs=%f cr=%f er=%f gr=%f",
     m_soc_norm_start, m_soc_abs_start, m_coulomb_charged_start,
     m_energy_charged_start, m_charge_kwh_grid_start);
+}
+
+
+/**
+ * SetChargeType: set current internal & public charge type (AC / DC / None)
+ *  Controlled by the OBD handler if enabled (derived from VWUP_CHG_MGMT_HV_CHGMODE).
+ *  The charge type defines the source for the charge metrics, to query the type
+ *  use IsChargeModeAC() and IsChargeModeDC().
+ */
+void OvmsVehicleVWeUp::SetChargeType(chg_type_t chgtype)
+{
+  if (m_chg_type == chgtype)
+    return;
+
+  m_chg_type = chgtype;
+
+  if (m_chg_type == CHGTYPE_AC) {
+    StdMetrics.ms_v_charge_type->SetValue("type2");
+  }
+  else if (m_chg_type == CHGTYPE_DC) {
+    StdMetrics.ms_v_charge_type->SetValue("ccs");
+  }
+  else {
+    StdMetrics.ms_v_charge_type->SetValue("");
+    // …and clear/reset charge metrics:
+    if (IsOBDReady()) {
+      ChargerPowerEffEcu->SetValue(100);
+      ChargerPowerLossEcu->SetValue(0);
+      ChargerPowerEffCalc->SetValue(100);
+      ChargerPowerLossCalc->SetValue(0);
+      ChargerAC1U->SetValue(0);
+      ChargerAC1I->SetValue(0);
+      ChargerAC2U->SetValue(0);
+      ChargerAC2I->SetValue(0);
+      ChargerACPower->SetValue(0);
+      ChargerDC1U->SetValue(0);
+      ChargerDC1I->SetValue(0);
+      ChargerDC2U->SetValue(0);
+      ChargerDC2I->SetValue(0);
+      ChargerDCPower->SetValue(0);
+      m_chg_ccs_voltage->SetValue(0);
+      m_chg_ccs_current->SetValue(0);
+      m_chg_ccs_power->SetValue(0);
+    }
+    StdMetrics.ms_v_charge_voltage->SetValue(0);
+    StdMetrics.ms_v_charge_current->SetValue(0);
+    StdMetrics.ms_v_charge_power->SetValue(0);
+    StdMetrics.ms_v_charge_efficiency->SetValue(0);
+  }
+}
+
+
+/**
+ * SetChargeState: set v.c.charging, v.c.state and v.c.substate according to current
+ *  charge timer mode, limits and SOC
+ *  Note: changing v.c.state triggers the notification, so this should be called last.
+ */
+void OvmsVehicleVWeUp::SetChargeState(bool charging)
+{
+  if (charging)
+  {
+    // Charge in progress:
+    StdMetrics.ms_v_charge_inprogress->SetValue(true);
+
+    if (StdMetrics.ms_v_charge_timermode->AsBool())
+      StdMetrics.ms_v_charge_substate->SetValue("scheduledstart");
+    else
+      StdMetrics.ms_v_charge_substate->SetValue("onrequest");
+
+    StdMetrics.ms_v_charge_state->SetValue("charging");
+  }
+  else
+  {
+    // Charge stopped:
+    StdMetrics.ms_v_charge_inprogress->SetValue(false);
+
+    int soc = StdMetrics.ms_v_bat_soc->AsInt();
+
+    if (IsOBDReady() && StdMetrics.ms_v_charge_timermode->AsBool())
+    {
+      // Scheduled charge;
+      int socmin = m_chg_timer_socmin->AsInt();
+      int socmax = m_chg_timer_socmax->AsInt();
+      // if stopped at maximum SOC, we've finished as scheduled:
+      if (soc >= socmax-1 && soc <= socmax+1) {
+        StdMetrics.ms_v_charge_substate->SetValue("scheduledstop");
+        StdMetrics.ms_v_charge_state->SetValue("done");
+      }
+      // …if stopped at minimum SOC, we're waiting for the second phase:
+      else if (soc >= socmin-1 && soc <= socmin+1) {
+        StdMetrics.ms_v_charge_substate->SetValue("timerwait");
+        StdMetrics.ms_v_charge_state->SetValue("stopped");
+      }
+      // …else the charge has been interrupted:
+      else {
+        StdMetrics.ms_v_charge_substate->SetValue("interrupted");
+        StdMetrics.ms_v_charge_state->SetValue("stopped");
+      }
+    }
+    else
+    {
+      // Unscheduled charge; done if fully charged:
+      if (soc >= 99) {
+        StdMetrics.ms_v_charge_substate->SetValue("stopped");
+        StdMetrics.ms_v_charge_state->SetValue("done");
+      }
+      // …else the charge has been interrupted:
+      else {
+        StdMetrics.ms_v_charge_substate->SetValue("interrupted");
+        StdMetrics.ms_v_charge_state->SetValue("stopped");
+      }
+    }
+  }
 }

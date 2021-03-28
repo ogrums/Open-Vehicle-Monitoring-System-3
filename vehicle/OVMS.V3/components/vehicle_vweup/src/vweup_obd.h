@@ -173,14 +173,16 @@ using namespace std;
 #define VWUP2_CHG_DC_I                  0x41F9
 
 #define VWUP_CHG_MGMT_SOC_NORM          0x1DD0
+#define VWUP_CHG_MGMT_SOC_LIMITS        0x1DD1    // Minimum & maximum SOC
+#define VWUP_CHG_MGMT_TIMER_DEF         0x1DD4    // Scheduled charge configured
 #define VWUP_CHG_MGMT_HV_CHGMODE        0x1DD6    // High voltage charge mode
 #define VWUP_CHG_MGMT_REM               0x1DE4    // remaining time for full charge
 #define VWUP_CHG_MGMT_LV_PWRSTATE       0x1DEC    // Low voltage (12V) systems power state
 #define VWUP_CHG_MGMT_LV_AUTOCHG        0x1DED    // Low voltage (12V) auto charge mode
+#define VWUP_CHG_MGMT_CCS_STATUS        0x1DEF    // CCS charger capabilities, current & voltage, flags
 
-#define VWUP_CHG_MGMT_TEST_1DD7         0x1DD7    // DC charge control data & flags?
+#define VWUP_CHG_MGMT_TEST_1DD7         0x1DD7    // Charger calibration?
 #define VWUP_CHG_MGMT_TEST_1DDA         0x1DDA    // Charge plug status?
 #define VWUP_CHG_MGMT_TEST_1DE6         0x1DE6    // BMS internal data?
-#define VWUP_CHG_MGMT_TEST_1DEF         0x1DEF    // DC charger capabilities, charge current & voltage, plug state?
 
 #endif //#ifndef __VEHICLE_EUP_OBD_H__

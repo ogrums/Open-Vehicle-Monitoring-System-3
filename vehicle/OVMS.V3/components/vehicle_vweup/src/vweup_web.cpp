@@ -86,6 +86,7 @@ void OvmsVehicleVWeUp::WebCfgFeatures(PageEntry_t &p, PageContext_t &c)
     nmap["con_obd"] = (c.getvar("con_obd") == "yes") ? "yes" : "no";
     nmap["con_t26"] = (c.getvar("con_t26") == "yes") ? "yes" : "no";
     nmap["canwrite"] = (c.getvar("canwrite") == "yes") ? "yes" : "no";
+    nmap["bms.autoreset"] = (c.getvar("bms.autoreset") == "yes") ? "yes" : "no";
     nmap["cell_interval_drv"] = c.getvar("cell_interval_drv");
     nmap["cell_interval_chg"] = c.getvar("cell_interval_chg");
     nmap["cell_interval_awk"] = c.getvar("cell_interval_awk");
@@ -186,6 +187,8 @@ void OvmsVehicleVWeUp::WebCfgFeatures(PageEntry_t &p, PageContext_t &c)
     -1, nmap["cell_interval_awk"].empty() ? 60 : std::stof(nmap["cell_interval_awk"]),
     60, 0, 300, 1,
     "<p>Default 60 seconds, 0=off. Note: an interval below 30 seconds may keep the car awake indefinitely.</p>");
+  c.input_checkbox("Auto reset", "bms.autoreset", strtobool(nmap["bms.autoreset"]),
+    "<p>Reset cell statistics automatically between driving &amp; charging?</p>");
   c.fieldset_end();
 
   c.print("<hr>");
@@ -387,7 +390,7 @@ void OvmsVehicleVWeUp::WebDispChgMetrics(PageEntry_t &p, PageContext_t &c)
             "</div>"
             "<div class=\"metric progress\" data-metric=\"v.b.current\" data-prec=\"1\">"
               "<div class=\"progress-bar progress-bar-danger value-low text-left\" role=\"progressbar\""
-                "aria-valuenow=\"0\" aria-valuemin=\"-10\" aria-valuemax=\"150\" style=\"width:0%\">"
+                "aria-valuenow=\"0\" aria-valuemin=\"-120\" aria-valuemax=\"240\" style=\"width:0%\">"
                 "<div>"
                   "<span class=\"label\">Current</span>"
                   "<span class=\"value\">?</span>"
@@ -397,7 +400,7 @@ void OvmsVehicleVWeUp::WebDispChgMetrics(PageEntry_t &p, PageContext_t &c)
             "</div>"
             "<div class=\"metric progress\" data-metric=\"v.b.power\" data-prec=\"3\">"
               "<div class=\"progress-bar progress-bar-warning value-low text-left\" role=\"progressbar\""
-                "aria-valuenow=\"0\" aria-valuemin=\"-4\" aria-valuemax=\"60\" style=\"width:0%\">"
+                "aria-valuenow=\"0\" aria-valuemin=\"-40\" aria-valuemax=\"80\" style=\"width:0%\">"
                 "<div>"
                   "<span class=\"label\">Power</span>"
                   "<span class=\"value\">?</span>"
@@ -429,14 +432,14 @@ void OvmsVehicleVWeUp::WebDispChgMetrics(PageEntry_t &p, PageContext_t &c)
             "</div>"
           "</div>"
 
-          "<h4>AC Charger</h4>"
+          "<h4>AC/DC Charge Input</h4>"
 
           "<div class=\"clearfix\">"
-            "<div class=\"metric progress\" data-metric=\"v.c.voltage\" data-prec=\"0\">"
+            "<div class=\"metric progress\" data-metric=\"v.c.voltage\" data-prec=\"1\">"
               "<div class=\"progress-bar value-low text-left\" role=\"progressbar\""
-                "aria-valuenow=\"0\" aria-valuemin=\"0\" aria-valuemax=\"240\" style=\"width:0%\">"
+                "aria-valuenow=\"0\" aria-valuemin=\"0\" aria-valuemax=\"420\" style=\"width:0%\">"
                 "<div>"
-                  "<span class=\"label\">AC Voltage</span>"
+                  "<span class=\"label\">Voltage</span>"
                   "<span class=\"value\">?</span>"
                   "<span class=\"unit\">V</span>"
                 "</div>"
@@ -444,9 +447,9 @@ void OvmsVehicleVWeUp::WebDispChgMetrics(PageEntry_t &p, PageContext_t &c)
             "</div>"
             "<div class=\"metric progress\" data-metric=\"v.c.current\" data-prec=\"1\">"
               "<div class=\"progress-bar progress-bar-danger value-low text-left\" role=\"progressbar\""
-                "aria-valuenow=\"0\" aria-valuemin=\"0\" aria-valuemax=\"16\" style=\"width:0%\">"
+                "aria-valuenow=\"0\" aria-valuemin=\"0\" aria-valuemax=\"120\" style=\"width:0%\">"
                 "<div>"
-                  "<span class=\"label\">AC Current</span>"
+                  "<span class=\"label\">Current</span>"
                   "<span class=\"value\">?</span>"
                   "<span class=\"unit\">A</span>"
                 "</div>"
@@ -454,15 +457,38 @@ void OvmsVehicleVWeUp::WebDispChgMetrics(PageEntry_t &p, PageContext_t &c)
             "</div>"
             "<div class=\"metric progress\" data-metric=\"v.c.power\" data-prec=\"3\">"
               "<div class=\"progress-bar progress-bar-warning value-low text-left\" role=\"progressbar\""
-                "aria-valuenow=\"0\" aria-valuemin=\"0\" aria-valuemax=\"8\" style=\"width:0%\">"
+                "aria-valuenow=\"0\" aria-valuemin=\"0\" aria-valuemax=\"40\" style=\"width:0%\">"
                 "<div>"
-                  "<span class=\"label\">AC Power</span>"
+                  "<span class=\"label\">Power</span>"
                   "<span class=\"value\">?</span>"
                   "<span class=\"unit\">kW</span>"
                 "</div>"
               "</div>"
             "</div>"
-            "<div class=\"metric progress\" data-metric=\"xvu.c.dc.u1\" data-prec=\"0\">"
+          "</div>"
+
+          "<div class=\"clearfix wide-metrics\">"
+            "<div class=\"metric number\" data-metric=\"v.c.efficiency\" data-prec=\"1\">"
+              "<span class=\"label\">Efficiency (total)</span>"
+              "<span class=\"value\">?</span>"
+              "<span class=\"unit\">%</span>"
+            "</div>"
+            "<div class=\"metric number\" data-metric=\"v.c.kwh.grid\" data-prec=\"2\">"
+              "<span class=\"label\">Charged (grid)</span>"
+              "<span class=\"value\">?</span>"
+              "<span class=\"unit\">kWh</span>"
+            "</div>"
+            "<div class=\"metric number\" data-metric=\"v.c.kwh.grid.total\" data-prec=\"1\">"
+              "<span class=\"label\">Charged total (grid)</span>"
+              "<span class=\"value\">?</span>"
+              "<span class=\"unit\">kWh</span>"
+            "</div>"
+          "</div>"
+
+          "<h4>AC Charger</h4>"
+
+          "<div class=\"clearfix\">"
+            "<div class=\"metric progress\" data-metric=\"xvu.c.dc.u1\" data-prec=\"1\">"
               "<div class=\"progress-bar value-low text-left\" role=\"progressbar\""
                 "aria-valuenow=\"0\" aria-valuemin=\"275\" aria-valuemax=\"420\" style=\"width:0%\">"
                 "<div>"
@@ -476,7 +502,17 @@ void OvmsVehicleVWeUp::WebDispChgMetrics(PageEntry_t &p, PageContext_t &c)
               "<div class=\"progress-bar progress-bar-danger value-low text-left\" role=\"progressbar\""
                 "aria-valuenow=\"0\" aria-valuemin=\"0\" aria-valuemax=\"9\" style=\"width:0%\">"
                 "<div>"
-                  "<span class=\"label\">DC Current</span>"
+                  "<span class=\"label\">DC Current 1</span>"
+                  "<span class=\"value\">?</span>"
+                  "<span class=\"unit\">A</span>"
+                "</div>"
+              "</div>"
+            "</div>"
+            "<div class=\"metric progress\" data-metric=\"xvu.c.dc.i2\" data-prec=\"1\">"
+              "<div class=\"progress-bar progress-bar-danger value-low text-left\" role=\"progressbar\""
+                "aria-valuenow=\"0\" aria-valuemin=\"0\" aria-valuemax=\"9\" style=\"width:0%\">"
+                "<div>"
+                  "<span class=\"label\">DC Current 2</span>"
                   "<span class=\"value\">?</span>"
                   "<span class=\"unit\">A</span>"
                 "</div>"
@@ -500,11 +536,6 @@ void OvmsVehicleVWeUp::WebDispChgMetrics(PageEntry_t &p, PageContext_t &c)
               "<span class=\"value\">?</span>"
               "<span class=\"unit\">°C</span>"
             "</div>"
-            "<div class=\"metric number\" data-metric=\"v.c.efficiency\" data-prec=\"1\">"
-              "<span class=\"label\">Efficiency (total)</span>"
-              "<span class=\"value\">?</span>"
-              "<span class=\"unit\">%</span>"
-            "</div>"
             "<div class=\"metric number\" data-metric=\"xvu.c.eff.calc\" data-prec=\"1\">"
               "<span class=\"label\">Efficiency (charger)</span>"
               "<span class=\"value\">?</span>"
@@ -514,16 +545,6 @@ void OvmsVehicleVWeUp::WebDispChgMetrics(PageEntry_t &p, PageContext_t &c)
               "<span class=\"label\">Loss (charger)</span>"
               "<span class=\"value\">?</span>"
               "<span class=\"unit\">kW</span>"
-            "</div>"
-            "<div class=\"metric number\" data-metric=\"v.c.kwh.grid\" data-prec=\"2\">"
-              "<span class=\"label\">Charged (grid)</span>"
-              "<span class=\"value\">?</span>"
-              "<span class=\"unit\">kWh</span>"
-            "</div>"
-            "<div class=\"metric number\" data-metric=\"v.c.kwh.grid.total\" data-prec=\"1\">"
-              "<span class=\"label\">Charged total (grid)</span>"
-              "<span class=\"value\">?</span>"
-              "<span class=\"unit\">kWh</span>"
             "</div>"
           "</div>"
 

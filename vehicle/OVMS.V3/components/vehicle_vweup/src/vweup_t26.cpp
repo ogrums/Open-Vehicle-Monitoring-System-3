@@ -184,6 +184,10 @@ void OvmsVehicleVWeUp::T26Init()
   StandardMetrics.ms_v_env_awake->SetValue(false);
   StandardMetrics.ms_v_env_aux12v->SetValue(false);
   StandardMetrics.ms_v_env_on->SetValue(false);
+
+  if (HasNoOBD()) {
+    StandardMetrics.ms_v_charge_mode->SetValue("standard");
+  }
 }
 
 
@@ -254,11 +258,13 @@ void OvmsVehicleVWeUp::vehicle_vweup_car_on(bool turnOn)
     ESP_LOGI(TAG, "CAR IS ON");
     StandardMetrics.ms_v_env_on->SetValue(true);
     if (!StandardMetrics.ms_v_charge_inprogress->AsBool()) {
-       t26_12v_boost_cnt = 0;
-       t26_12v_wait_off = 0;
-       PollSetState(VWEUP_ON);
+      t26_12v_boost_cnt = 0;
+      t26_12v_wait_off = 0;
+      SetUsePhase(UP_Driving);
+      StdMetrics.ms_v_door_chargeport->SetValue(false);
+      PollSetState(VWEUP_ON);
     } else {
-       PollSetState(VWEUP_CHARGING);
+      PollSetState(VWEUP_CHARGING);
     }
     ResetTripCounters();
     // Turn off possibly running climate control timer
@@ -310,7 +316,9 @@ void OvmsVehicleVWeUp::IncomingFrameCan3(CAN_frame_t *p_frame)
   switch (p_frame->MsgID) {
 
     case 0x61A: // SOC.
-      if (HasNoOBD() || !StandardMetrics.ms_v_env_on->AsBool()) {
+      // If available, OBD is normally responsible for the SOC, but K-CAN occasionally
+      // sends SOC updates while OBD is in state OFF:
+      if (HasNoOBD() || IsOff()) {
         StandardMetrics.ms_v_bat_soc->SetValue(d[7] / 2.0);
       }
       if (HasNoOBD()) {
@@ -453,13 +461,11 @@ void OvmsVehicleVWeUp::IncomingFrameCan3(CAN_frame_t *p_frame)
         // count till 3 messages in a row to stop ghost triggering
         if (isCharging && cd_count == 3) {
           cd_count = 0;
+          SetUsePhase(UP_Charging);
           ResetChargeCounters();
-          StandardMetrics.ms_v_charge_mode->SetValue("standard");
           StandardMetrics.ms_v_door_chargeport->SetValue(true);
           StandardMetrics.ms_v_charge_pilot->SetValue(true);
-          StandardMetrics.ms_v_charge_inprogress->SetValue(true);
-          StandardMetrics.ms_v_charge_substate->SetValue("onrequest");
-          StandardMetrics.ms_v_charge_state->SetValue("charging");
+          SetChargeState(true);
           StandardMetrics.ms_v_env_charging12v->SetValue(true);
           StandardMetrics.ms_v_env_aux12v->SetValue(true);
           ESP_LOGI(TAG, "Car charge session started");
@@ -469,16 +475,14 @@ void OvmsVehicleVWeUp::IncomingFrameCan3(CAN_frame_t *p_frame)
         }
         if (!isCharging && cd_count == 3) {
           cd_count = 0;
-          StandardMetrics.ms_v_charge_mode->SetValue("standard");
-          StandardMetrics.ms_v_charge_inprogress->SetValue(false);
           StandardMetrics.ms_v_charge_pilot->SetValue(false);
-          StandardMetrics.ms_v_door_chargeport->SetValue(false);
-          StandardMetrics.ms_v_charge_substate->SetValue("onrequest");
-          StandardMetrics.ms_v_charge_state->SetValue("done");
+          SetChargeState(false);
           if (StandardMetrics.ms_v_env_on->AsBool()) {
-             PollSetState(VWEUP_ON);
+            SetUsePhase(UP_Driving);
+            StdMetrics.ms_v_door_chargeport->SetValue(false);
+            PollSetState(VWEUP_ON);
           } else {
-             PollSetState(VWEUP_AWAKE);
+            PollSetState(VWEUP_AWAKE);
           }
           ESP_LOGI(TAG, "Car charge session ended");
         }

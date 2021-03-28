@@ -100,6 +100,9 @@ void can_start(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, co
     case 33333:
       res = sbus->Start(smode,CAN_SPEED_33KBPS,dbcfile);
       break;
+    case 50000:
+      res = sbus->Start(smode,CAN_SPEED_50KBPS,dbcfile);
+      break;
     case 83333:
       res = sbus->Start(smode,CAN_SPEED_83KBPS,dbcfile);
       break;
@@ -119,7 +122,7 @@ void can_start(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, co
       res = sbus->Start(smode,CAN_SPEED_1000KBPS,dbcfile);
       break;
     default:
-      writer->puts("Error: Unrecognised speed (33333, 83333, 100000, 125000, 250000, 500000, 1000000 are accepted)");
+      writer->puts("Error: Unrecognised speed (33333, 50000, 83333, 100000, 125000, 250000, 500000, 1000000 are accepted)");
       return;
     }
   if (res == ESP_OK)
@@ -182,7 +185,12 @@ void can_tx(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const
   const char* bus = cmd->GetParent()->GetParent()->GetName();
   const char* mode = cmd->GetName();
   CAN_frame_format_t smode = CAN_frame_std;
-  if (strcmp(mode, "extended")==0) smode = CAN_frame_ext;
+  uint32_t idmax = (1 << 11) - 1;
+  if (strcmp(mode, "extended")==0)
+    {
+    smode = CAN_frame_ext;
+    idmax = (1 << 29) - 1;
+    }
 
   canbus* sbus = (canbus*)MyPcpApp.FindDeviceByName(bus);
   if (sbus == NULL)
@@ -201,11 +209,24 @@ void can_tx(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const
   frame.FIR.U = 0;
   frame.FIR.B.DLC = argc-1;
   frame.FIR.B.FF = smode;
-  frame.MsgID = (int)strtol(argv[0],NULL,16);
+  char* ep;
+  uint32_t uv = strtoul(argv[0], &ep, 16);
+  if (*ep != '\0' || uv > idmax)
+    {
+    writer->printf("Error: Invalid CAN ID \"%s\" (0x%lx max)\n", argv[0], idmax);
+    return;
+    }
+  frame.MsgID = uv;
   frame.callback = NULL;
   for(int k=0;k<(argc-1);k++)
     {
-    frame.data.u8[k] = strtol(argv[k+1],NULL,16);
+    uv = strtoul(argv[k+1], &ep, 16);
+    if (*ep != '\0' || uv > 0xff)
+      {
+      writer->printf("Error: Invalid CAN octet \"%s\"\n", argv[k+1]);
+      return;
+      }
+    frame.data.u8[k] = uv;
     }
   sbus->Write(&frame);
   }
